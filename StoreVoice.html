@@ -1,0 +1,3482 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>店聲 StoreVoice - AI 商家評論分析平台</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS & JS (Cloudflare 高速 CDN 鏡像) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <!-- FontAwesome 圖示 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2pdf.js (高解析度客戶端 PDF 生成套件) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        #map-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* 自訂地圖 Pin 標記與水波紋脈衝動畫 */
+        .custom-pin-wrapper {
+            background: transparent;
+            border: none;
+        }
+
+        .custom-map-pin {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            background: #ffffff;
+            color: #1e293b;
+            padding: 5px 10px;
+            border-radius: 9999px;
+            border: 1.5px solid #cbd5e1;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .custom-map-pin:hover {
+            transform: scale(1.08);
+            border-color: #3b82f6;
+            box-shadow: 0 6px 18px rgba(59, 130, 246, 0.28);
+        }
+
+        .custom-map-pin.active {
+            background: #1e40af;
+            color: #ffffff;
+            border-color: #60a5fa;
+            transform: scale(1.12);
+            box-shadow: 0 8px 24px rgba(30, 64, 175, 0.4);
+            z-index: 9999 !important;
+        }
+
+        /* 選中時的雷達水波紋光圈 */
+        .custom-map-pin.active::after {
+            content: '';
+            position: absolute;
+            inset: -7px;
+            border-radius: 9999px;
+            border: 2px solid #3b82f6;
+            animation: marker-pulse 1.8s infinite ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes marker-pulse {
+            0% {
+                transform: scale(0.9);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: scale(1.6);
+                opacity: 0;
+            }
+        }
+
+        /* 面板切換平滑淡入動畫 */
+        .dashboard-fade-in {
+            animation: dashFade 0.28s ease-out;
+        }
+
+        @keyframes dashFade {
+            from {
+                opacity: 0.35;
+                transform: translateY(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .store-card.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        }
+
+        /* 痛點卡片選中狀態 */
+        .pain-card.active {
+            border-color: #f43f5e;
+            background-color: #fff1f2;
+            box-shadow: 0 2px 8px rgba(244, 63, 94, 0.15);
+        }
+
+        /* 隱藏滾動條但保持順暢滾動與觸控手感 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+        }
+
+        /* RWD 行動端視圖切換：CSS 隔離策略，確保桌面端 (>= md) 永不破版 */
+        @media (max-width: 767px) {
+            .mobile-view-map #dashboard-section {
+                display: none !important;
+            }
+
+            .mobile-view-report #map-section {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 flex flex-col h-screen overflow-hidden antialiased">
+
+    <!-- 頂部導覽列 -->
+    <header
+        class="bg-white border-b border-gray-200 px-4 md:px-6 py-3.5 flex justify-between items-center z-10 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div
+                class="bg-blue-600 text-white p-2 rounded-xl font-bold flex items-center justify-center w-10 h-10 shadow-sm shrink-0">
+                <i class="fa-solid fa-store text-lg"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="font-bold text-lg md:text-xl leading-tight">店聲 StoreVoice</h1>
+                </div>
+                <p class="text-[11px] md:text-xs text-gray-500 hidden sm:block">AI 商家評論分析、商圈競品對標與營運 ROI 成長驗證引擎 (桃園示範區)
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <span
+                class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-100 text-green-800">
+                <span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                <span class="hidden sm:inline">stores.json </span>連線中
+            </span>
+            <button id="share-platform-btn" onclick="sharePlatform()"
+                class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center cursor-pointer shadow-sm active:scale-95">
+                <i class="fa-solid fa-share-nodes text-blue-600 mr-1.5 text-sm"></i>
+                <span id="share-platform-text">分享平台</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 主內容區：雙欄佈局 (行動端支援 Tab 切換，桌面端維持左右並排) -->
+    <main id="main-container" class="flex-1 flex flex-col md:flex-row overflow-hidden relative mobile-view-map">
+
+        <!-- 左半邊：搜尋與地圖區 -->
+        <section id="map-section"
+            class="w-full md:w-1/2 flex flex-col border-r border-gray-200 bg-white h-full relative overflow-hidden">
+            <!-- 搜尋與篩選列 -->
+            <div class="p-3.5 md:p-4 border-b border-gray-200 bg-gray-50 space-y-2.5 shrink-0">
+                <!-- 搜尋輸入列 -->
+                <div class="relative flex items-center">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-gray-400 text-sm"></i>
+                    <input id="store-search-input" type="text" placeholder="搜尋店名、區域、菜色（如：相演、米干、中壢...）"
+                        oninput="onSearchInput(this.value)"
+                        class="w-full pl-9 pr-16 py-2.5 min-h-[44px] bg-white border border-gray-300 rounded-xl text-xs md:text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                    <button id="search-clear-btn" onclick="clearSearch()"
+                        class="hidden absolute right-2.5 text-xs bg-gray-200 hover:bg-gray-300 text-gray-600 px-3 py-1.5 rounded-lg transition min-h-[32px]">
+                        清除
+                    </button>
+                </div>
+
+                <!-- 分類標籤篩選與排序 (支援順暢水平觸控滑動) -->
+                <div
+                    class="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pt-0.5 overscroll-x-contain touch-pan-x">
+                    <div id="category-pills" class="flex space-x-1.5 shrink-0">
+                        <button onclick="setCategoryFilter('all')" data-cat="all"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-sm transition inline-flex items-center justify-center">
+                            全部
+                        </button>
+                        <button onclick="setCategoryFilter('燒肉/鍋物')" data-cat="燒肉/鍋物"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            燒肉鍋物
+                        </button>
+                        <button onclick="setCategoryFilter('中式/江浙')" data-cat="中式/江浙"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            中式江浙
+                        </button>
+                        <button onclick="setCategoryFilter('在地小吃/米干')" data-cat="在地小吃/米干"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            在地米干
+                        </button>
+                        <button onclick="setCategoryFilter('異國/日料')" data-cat="異國/日料"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            日料海鮮
+                        </button>
+                        <button onclick="setCategoryFilter('港式茶餐廳')" data-cat="港式茶餐廳"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            港式茶檔
+                        </button>
+                        <button onclick="setCategoryFilter('異國/餐酒館')" data-cat="異國/餐酒館"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            異國餐酒
+                        </button>
+                        <button onclick="setCategoryFilter('港點/百匯')" data-cat="港點/百匯"
+                            class="cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center">
+                            港點百匯
+                        </button>
+                    </div>
+
+                    <!-- 排序選單 -->
+                    <div class="shrink-0 flex items-center space-x-1 text-xs text-gray-500">
+                        <i class="fa-solid fa-arrow-down-wide-short text-gray-400"></i>
+                        <select id="sort-select" onchange="onSortChange(this.value)"
+                            class="bg-white border border-gray-200 text-gray-700 text-xs rounded-xl px-2.5 py-2 min-h-[44px] focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer">
+                            <option value="default">預設排序</option>
+                            <option value="stars">★ 評分高至低</option>
+                            <option value="reviews">💬 評論數最多</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 狀態提示列 -->
+                <div class="flex justify-between items-center text-[11px] text-gray-500 px-0.5">
+                    <span id="search-count-label">顯示中：桃園市 7 家精選店家</span>
+                    <button class="text-blue-600 font-medium hover:underline text-[11px] py-1"
+                        onclick="resetAllFilters()">重設篩選</button>
+                </div>
+            </div>
+
+            <!-- 地圖本體容器 (手機端設為適當比例 45vh，確保地圖視角充足且與下方列表互不干擾；桌面端填滿 flex-1) -->
+            <div id="map-wrapper"
+                class="w-full h-[45vh] md:h-full md:flex-1 relative shrink-0 overflow-hidden min-h-[260px]">
+                <div id="map"></div>
+            </div>
+
+            <!-- 店家切換卡片區域 (手機版獨立於地圖下方，互不遮擋干擾；桌面端懸浮於地圖底端) -->
+            <div id="store-cards-container"
+                class="flex-1 md:flex-none p-3.5 pb-20 md:pb-3 bg-white md:bg-white/95 md:backdrop-blur-sm md:rounded-2xl md:shadow-lg md:border md:border-gray-200/80 md:absolute md:bottom-4 md:left-4 md:right-4 z-[1000] overflow-y-auto md:overflow-visible border-t md:border-t-0 border-gray-100">
+                <div class="flex justify-between items-center mb-2">
+                    <p
+                        class="text-xs font-semibold text-gray-500 md:text-gray-400 uppercase tracking-wider flex items-center">
+                        <i class="fa-solid fa-arrows-left-right mr-1.5 text-blue-500"></i>
+                        <span>點選店家切換 AI 報告：</span>
+                    </p>
+                    <span id="store-count-badge" class="text-[11px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full">7 家店家</span>
+                </div>
+                <div id="store-list"
+                    class="flex space-x-3 overflow-x-auto pb-1 no-scrollbar overscroll-x-contain touch-pan-x snap-x snap-mandatory">
+                    <!-- 店家卡片由 JavaScript 動態生成 -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 右半邊：AI 分析報告面板 (DashBoard) -->
+        <section id="dashboard-section"
+            class="w-full md:w-1/2 min-w-0 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 bg-slate-50/50 space-y-6 h-full">
+
+                        <div id="dashboard-content" class="w-full min-w-0 space-y-5">
+                <!-- 店家標題資訊區 (純白極簡) -->
+                <div class="w-full bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-start overflow-hidden">
+                    <div class="min-w-0 pr-3">
+                        <div class="flex items-center space-x-2 mb-1.5">
+                            <span id="report-category" class="bg-blue-50 text-blue-700 text-xs px-2.5 py-0.5 rounded-full font-semibold border border-blue-200">燒肉/鍋物</span>
+                            <span class="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-medium flex items-center border border-emerald-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>AI 語意分析完成
+                            </span>
+                        </div>
+                        <h2 id="report-title" class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight truncate">相演無煙燒肉 (大興旗艦店)</h2>
+                        <p id="report-address" class="text-xs text-slate-500 mt-1 flex items-center truncate">
+                            <i class="fa-solid fa-location-dot text-blue-600 mr-1.5 shrink-0"></i>
+                            <span class="truncate">桃園市桃園區大興路136號 (近大有商圈)</span>
+                        </p>
+                        <div class="flex items-center space-x-3 mt-3">
+                            <span id="report-stars" class="text-amber-500 font-bold text-base flex items-center">
+                                <i class="fa-solid fa-star mr-1 text-sm"></i>4.6
+                            </span>
+                            <span id="report-reviews" class="text-xs text-slate-500 font-medium">(4,852 則 Google 評價)</span>
+                        </div>
+                    </div>
+                    <button id="export-report-btn" onclick="openExportModal()"
+                        class="min-h-[44px] text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition font-medium shadow-sm inline-flex items-center space-x-2 shrink-0 cursor-pointer">
+                        <i class="fa-solid fa-file-export text-blue-200"></i>
+                        <span>匯出簡報</span>
+                    </button>
+                </div>
+
+                <!-- 頂部分頁切換 (仿 Google Maps 極簡文字導覽列) -->
+                <div class="w-full bg-white border-b border-slate-200 flex items-center px-2 overflow-x-auto no-scrollbar shrink-0">
+                    <button id="dash-tab-btn-overview" onclick="switchDashboardTab('overview')"
+                        class="dash-tab-btn flex-1 min-h-[44px] py-3 text-center text-xs md:text-sm transition-all border-b-2 border-blue-600 text-blue-600 font-bold cursor-pointer whitespace-nowrap">
+                        總覽
+                    </button>
+                    <button id="dash-tab-btn-retention" onclick="switchDashboardTab('retention')"
+                        class="dash-tab-btn flex-1 min-h-[44px] py-3 text-center text-xs md:text-sm transition-all border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium cursor-pointer whitespace-nowrap">
+                        公關
+                    </button>
+                    <button id="dash-tab-btn-benchmark" onclick="switchDashboardTab('benchmark')"
+                        class="dash-tab-btn flex-1 min-h-[44px] py-3 text-center text-xs md:text-sm transition-all border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium cursor-pointer whitespace-nowrap">
+                        同業
+                    </button>
+                </div>
+
+                <!-- Tab 1: 📊 總覽與新客引流 -->
+                <div id="dash-panel-overview" class="dash-panel space-y-5 w-full min-w-0">
+                    <!-- 🚀 Phase 1：AI 一鍵生成新客行銷文案卡片 (藍白簡約極簡版) -->
+                    <div class="w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden transition-all space-y-4">
+                        <!-- 標題與操作工具列 -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                                    <i class="fa-solid fa-rocket text-sm"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <h3 class="text-sm font-bold tracking-tight text-slate-900 flex items-center">
+                                            🚀 AI 一鍵生成新客行銷文案
+                                        </h3>
+                                        <span class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                            Phase 1 新客引擎
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500">自動萃取店家招牌特色與口碑好評，快速生成社群傳播素材</p>
+                                </div>
+                            </div>
+
+                            <!-- 操作按鈕群：風格切換 + 一鍵複製 -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="bg-slate-100 p-1 rounded-xl border border-slate-200 flex text-xs">
+                                    <button onclick="switchMarketingTone('ig')" id="tone-btn-ig"
+                                        class="min-h-[44px] px-3.5 py-1.5 rounded-lg font-medium transition text-white bg-blue-600 shadow-sm cursor-pointer inline-flex items-center justify-center">
+                                        <i class="fa-brands fa-instagram mr-1.5"></i>IG 爆款
+                                    </button>
+                                    <button onclick="switchMarketingTone('promo')" id="tone-btn-promo"
+                                        class="min-h-[44px] px-3.5 py-1.5 rounded-lg font-medium transition text-slate-600 hover:text-slate-900 cursor-pointer inline-flex items-center justify-center">
+                                        <i class="fa-solid fa-bullhorn mr-1.5 text-blue-500"></i>新客引流
+                                    </button>
+                                    <button onclick="switchMarketingTone('foodie')" id="tone-btn-foodie"
+                                        class="min-h-[44px] px-3.5 py-1.5 rounded-lg font-medium transition text-slate-600 hover:text-slate-900 cursor-pointer inline-flex items-center justify-center">
+                                        <i class="fa-solid fa-utensils mr-1.5 text-blue-500"></i>老饕筆記
+                                    </button>
+                                </div>
+
+                                <button id="copy-marketing-btn" onclick="copyMarketingCopy()"
+                                    class="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all inline-flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer shrink-0">
+                                    <i class="fa-regular fa-copy text-sm"></i>
+                                    <span id="copy-marketing-text">一鍵複製文案</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 萃取的店家亮點餐點與特色標籤 -->
+                        <div class="flex items-center gap-2 text-xs overflow-x-auto no-scrollbar py-0.5">
+                            <span class="text-[11px] text-slate-500 font-medium shrink-0 flex items-center">
+                                <i class="fa-solid fa-wand-magic-sparkles text-blue-600 mr-1.5"></i>已萃取亮點餐點：
+                            </span>
+                            <div id="marketing-feature-chips" class="flex items-center gap-1.5 shrink-0">
+                                <!-- 動態注入標籤 -->
+                            </div>
+                        </div>
+
+                        <!-- 文案預覽輸出區 (白底極簡) -->
+                        <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200 font-sans text-xs leading-relaxed text-slate-800 overflow-hidden">
+                            <div class="flex items-center justify-between text-[11px] text-slate-500 border-b border-slate-200/80 pb-2 mb-2.5">
+                                <span class="flex items-center space-x-1.5">
+                                    <i class="fa-solid fa-pen-nib text-blue-600"></i>
+                                    <span class="font-medium">社群即發預覽 (點擊可直接微調編輯)</span>
+                                </span>
+                                <span id="copy-char-count" class="font-mono text-slate-400">0 字元</span>
+                            </div>
+                            <textarea id="marketing-copy-output" rows="6"
+                                class="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-slate-800 leading-relaxed focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none font-sans"
+                                spellcheck="false"></textarea>
+
+                            <div class="flex justify-between items-center pt-2.5 text-[11px] text-slate-500">
+                                <span class="text-slate-500">💡 提示：點擊「一鍵複製」即可直接貼至 Instagram / Threads / FB 粉專發文</span>
+                                <button onclick="regenerateMarketingCopy()"
+                                    class="text-blue-600 hover:text-blue-700 inline-flex items-center space-x-1 transition font-medium cursor-pointer py-1">
+                                    <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+                                    <span>重新潤飾</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 情感分佈圓餅圖與關鍵字 -->
+                    <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- 情感概覽圓餅圖 -->
+                        <div class="w-full min-w-0 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-800 mb-3 flex items-center uppercase tracking-wider">
+                                <i class="fa-solid fa-chart-pie text-blue-600 mr-2 text-sm"></i> 情感聲量分佈 (Sentiment)
+                            </h3>
+                            <div class="h-44 relative w-full flex justify-center items-center overflow-hidden">
+                                <canvas id="sentimentChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- 高頻關鍵字 -->
+                        <div class="w-full min-w-0 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            <h3 class="text-xs font-bold text-slate-800 mb-3 flex items-center uppercase tracking-wider">
+                                <i class="fa-solid fa-tags text-blue-600 mr-2 text-sm"></i> 熱門評論關鍵字與特色亮點
+                            </h3>
+                            <div id="keywords-container" class="space-y-3 pt-1">
+                                <!-- 關鍵字列表 JavaScript 動態更新 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 典型顧客反饋與 AI 改善行動方案 (白底簡約) -->
+                    <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="w-full min-w-0 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between overflow-hidden">
+                            <div>
+                                <h3 class="text-xs font-bold text-slate-800 mb-3 flex items-center uppercase tracking-wider">
+                                    <i class="fa-solid fa-comments text-blue-600 mr-2 text-sm"></i> 典型顧客反饋 (Recent Insights)
+                                </h3>
+                                <div id="reviews-container" class="space-y-2.5 text-xs">
+                                    <!-- 動態填入評論 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="w-full min-w-0 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
+                            <div>
+                                <div class="flex justify-between items-center mb-3">
+                                    <h3 class="text-xs font-bold text-slate-800 flex items-center uppercase tracking-wider">
+                                        <i class="fa-solid fa-wand-magic-sparkles text-blue-600 mr-2"></i> AI 經營改善行動方案
+                                    </h3>
+                                    <button onclick="copyAiAdvice()" id="copy-advice-btn"
+                                        class="min-h-[32px] text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1 rounded-lg transition inline-flex items-center space-x-1 border border-slate-200 cursor-pointer">
+                                        <i class="fa-regular fa-copy"></i>
+                                        <span>複製建議</span>
+                                    </button>
+                                </div>
+                                <ul id="ai-advice-list" class="space-y-2.5 text-xs text-slate-700">
+                                    <!-- 動態填入 AI 建議 -->
+                                </ul>
+                            </div>
+                            <div class="mt-4 pt-3 border-t border-slate-100 text-[10px] text-slate-400 flex justify-between items-center">
+                                <span>* 基於近三個月 Google 評論經 LLM 萃取</span>
+                                <span class="text-blue-600 font-mono font-medium">StoreVoice AI v2.4</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: 🛡️ 留存與公關回覆 -->
+                <div id="dash-panel-retention" class="dash-panel space-y-5 w-full min-w-0 hidden">
+                    <!-- 主題維度分析表 (Theme Breakdown) -->
+                    <div class="w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                                    <i class="fa-solid fa-list-check text-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-900 flex items-center">
+                                        核心主題指標診斷 (Theme Breakdown)
+                                    </h3>
+                                    <p class="text-[11px] text-slate-500">多維度體驗指標交叉評析，精準鎖定各營運環節落點</p>
+                                </div>
+                            </div>
+                            <span class="text-[11px] text-slate-400 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg font-mono">滿分 5.0</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs text-slate-600">
+                                <thead class="bg-slate-50 text-[11px] text-slate-500 uppercase border-b border-slate-200">
+                                    <tr>
+                                        <th class="py-2.5 pl-3 font-semibold">主題維度</th>
+                                        <th class="py-2.5 font-semibold">討論聲量</th>
+                                        <th class="py-2.5 font-semibold text-emerald-600">正面比</th>
+                                        <th class="py-2.5 font-semibold text-slate-400">中立比</th>
+                                        <th class="py-2.5 font-semibold text-rose-500">負面比</th>
+                                        <th class="py-2.5 pr-3 text-right font-semibold">AI 滿意度</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="theme-table-body" class="divide-y divide-slate-100 font-medium">
+                                    <!-- 動態生成主題表格內容 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 🚨 Phase 2：顧客負評痛點與智慧公關回覆模組 (藍白純淨版) -->
+                    <div class="w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 overflow-hidden">
+                        <!-- 模組標題與留存徽章 -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                                    <i class="fa-solid fa-triangle-exclamation text-sm"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <h3 class="text-sm font-bold text-slate-900 flex items-center">
+                                            🚨 顧客負評痛點與智慧公關回覆
+                                        </h3>
+                                        <span class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                            Phase 2 留存引擎
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500">鎖定高頻客怨痛點，透過同理心 AI 模板一鍵修復顧客關係、提升二次回訪率</p>
+                                </div>
+                            </div>
+
+                            <!-- 負評風險警示標籤 -->
+                            <div id="negative-risk-badge" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 shrink-0">
+                                <i class="fa-solid fa-shield-heart text-blue-600"></i>
+                                <span id="negative-risk-text">顧客流失風險：中度</span>
+                            </div>
+                        </div>
+
+                        <!-- 痛點列表與典型客怨標籤 -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- 左欄：核心痛點檢視與選擇 -->
+                            <div class="space-y-2 min-w-0">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="font-bold text-slate-800 flex items-center">
+                                        <i class="fa-solid fa-fire-burner text-blue-600 mr-1.5"></i>偵測之主要客怨痛點：
+                                    </span>
+                                    <span class="text-[10px] text-slate-400">點選切換回覆標的</span>
+                                </div>
+                                <div id="pain-points-list" class="space-y-2">
+                                    <!-- 動態注入客怨卡片 -->
+                                </div>
+                            </div>
+
+                            <!-- 右欄：典型負面評論真實節錄 -->
+                            <div class="space-y-2 min-w-0">
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="font-bold text-slate-800 flex items-center">
+                                        <i class="fa-solid fa-comment-slash text-slate-500 mr-1.5"></i>代表性顧客不滿意見：
+                                    </span>
+                                    <span class="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded font-mono font-medium">待公關回應</span>
+                                </div>
+                                <div id="target-complaint-box" class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs text-slate-700 overflow-hidden">
+                                    <!-- 動態注入當前對應的負評/爭議內容 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI 智能公關回覆產生器 (清爽淺灰高質感卡片) -->
+                        <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3 overflow-hidden">
+                            <div class="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 pb-3">
+                                <div class="flex flex-wrap items-center gap-2 text-xs">
+                                    <span class="font-bold text-slate-900 flex items-center">
+                                        <i class="fa-solid fa-wand-magic-sparkles text-blue-600 mr-1.5"></i>AI 官方公關回覆範本 (SOP)
+                                    </span>
+                                    <span class="text-[11px] text-slate-400">｜ 策略調校：</span>
+                                    <div class="flex space-x-1.5">
+                                        <button onclick="switchPrStrategy('apology')" id="pr-strat-apology"
+                                            class="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow-sm transition cursor-pointer inline-flex items-center justify-center">誠懇致歉</button>
+                                        <button onclick="switchPrStrategy('invitation')" id="pr-strat-invitation"
+                                            class="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:text-slate-900 transition cursor-pointer inline-flex items-center justify-center">暖心補償</button>
+                                        <button onclick="switchPrStrategy('clarification')" id="pr-strat-clarification"
+                                            class="min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:text-slate-900 transition cursor-pointer inline-flex items-center justify-center">客觀說明</button>
+                                    </div>
+                                </div>
+
+                                <!-- 一鍵複製回覆按鈕 -->
+                                <button id="copy-pr-btn" onclick="copyPrReply()"
+                                    class="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all inline-flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer shrink-0">
+                                    <i class="fa-regular fa-copy"></i>
+                                    <span id="copy-pr-text">一鍵複製回覆</span>
+                                </button>
+                            </div>
+
+                            <textarea id="pr-reply-output" rows="6"
+                                class="w-full bg-white border border-slate-200 rounded-lg p-3 text-xs text-slate-800 leading-relaxed focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-sans resize-none"
+                                spellcheck="false"></textarea>
+
+                            <div class="flex justify-between items-center text-[11px] text-slate-500 pt-0.5">
+                                <span>💡 提示：此回覆包含同理致歉、內部改善措施與店長具名，適合直接貼至 Google 商家回覆評論。</span>
+                                <button onclick="regeneratePrReply()"
+                                    class="text-blue-600 hover:text-blue-700 inline-flex items-center space-x-1 transition font-medium cursor-pointer py-1">
+                                    <i class="fa-solid fa-arrows-rotate text-[10px]"></i>
+                                    <span>重新生成</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: ⚔️ 商圈對標與 ROI -->
+                <div id="dash-panel-benchmark" class="dash-panel space-y-5 w-full min-w-0 hidden">
+                    <!-- ⚔️ 商圈同業 PK 對決與營運成長驗證模組 (藍白極簡版) -->
+                    <div class="w-full bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden transition-all space-y-4">
+                        <!-- 模組標題與同業選擇器 -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                                    <i class="fa-solid fa-scale-balanced text-sm"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center space-x-2">
+                                        <h3 class="text-sm font-bold tracking-tight text-slate-900 flex items-center">
+                                            ⚔️ 商圈同業 PK 對決與營運成長驗證
+                                        </h3>
+                                        <span class="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                                            Phase 3 對標與 ROI
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500">商圈同業多維度數據 PK 擂台 ＋ 導入 StoreVoice 對策後每週來客數實證飛輪</p>
+                                </div>
+                            </div>
+
+                            <!-- 同業選擇器下拉選單 -->
+                            <div class="flex items-center space-x-2">
+                                <label for="competitor-select" class="text-xs text-slate-600 font-medium flex items-center shrink-0">
+                                    <i class="fa-solid fa-crosshairs text-blue-600 mr-1.5"></i>對標對手：
+                                </label>
+                                <select id="competitor-select" onchange="onCompetitorSelectChange(this.value)"
+                                    class="min-h-[44px] bg-white border border-slate-200 text-slate-800 text-xs rounded-xl px-3.5 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer shadow-sm font-medium">
+                                    <!-- 動態注入同業對手選項 -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- ① 商圈同業 PK 多維度對比擂台 -->
+                        <div class="space-y-3 w-full min-w-0">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-bold text-slate-800 flex items-center">
+                                    <i class="fa-solid fa-bolt text-blue-600 mr-1.5"></i>商圈同業多維度量化對標（Competitor Benchmark）
+                                </span>
+                                <div class="flex items-center space-x-2">
+                                    <span id="pk-score-diff-badge"
+                                        class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                        評分領先 +0.3 ★
+                                    </span>
+                                    <span id="pk-review-diff-badge"
+                                        class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-50 text-slate-700 border border-slate-200">
+                                        聲量高出 +1,962 則
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- 左右 PK 卡片並排佈局 (藍白簡約) -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                <!-- 本店卡片 (強調藍色邊框) -->
+                                <div class="w-full min-w-0 bg-white border-2 border-blue-500 rounded-xl p-3.5 space-y-3 relative shadow-sm overflow-hidden">
+                                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                                        <div class="flex items-center space-x-1.5 min-w-0">
+                                            <span class="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.5 rounded shadow-sm shrink-0">本店</span>
+                                            <h4 id="pk-current-name" class="font-bold text-xs text-slate-900 truncate">相演無煙燒肉</h4>
+                                        </div>
+                                        <div class="flex items-center space-x-2 text-right shrink-0">
+                                            <span id="pk-current-stars" class="text-amber-500 font-bold text-xs flex items-center">
+                                                <i class="fa-solid fa-star mr-1 text-[11px]"></i>4.6
+                                            </span>
+                                            <span id="pk-current-reviews" class="text-[10px] text-slate-400 font-mono">4,852 則評論</span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2 text-xs">
+                                        <div class="p-2.5 rounded-lg bg-blue-50/60 border border-blue-100">
+                                            <div class="text-[10px] text-blue-700 font-bold flex items-center mb-1">
+                                                <i class="fa-solid fa-circle-check mr-1.5 text-[11px]"></i>核心優勢 (護城河)
+                                            </div>
+                                            <p id="pk-current-adv" class="text-slate-700 text-[11px] leading-relaxed">換烤網神速、肉質鮮甜穩定、海鮮品質極高</p>
+                                        </div>
+                                        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                                            <div class="text-[10px] text-slate-600 font-bold flex items-center mb-1">
+                                                <i class="fa-solid fa-triangle-exclamation mr-1.5 text-[11px] text-amber-500"></i>潛在痛點 (防守重點)
+                                            </div>
+                                            <p id="pk-current-disadv" class="text-slate-600 text-[11px] leading-relaxed">尖峰限時 2 小時略緊湊、週末熱門時段一位難求</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 競品對手卡片 (淺灰基調) -->
+                                <div class="w-full min-w-0 bg-slate-50/70 border border-slate-200 rounded-xl p-3.5 space-y-3 relative shadow-sm overflow-hidden">
+                                    <div class="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                                        <div class="flex items-center space-x-1.5 min-w-0">
+                                            <span class="text-[10px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded shrink-0">對標同業</span>
+                                            <h4 id="pk-competitor-name" class="font-bold text-xs text-slate-800 truncate">野饌日式炭火燒肉</h4>
+                                        </div>
+                                        <div class="flex items-center space-x-2 text-right shrink-0">
+                                            <span id="pk-competitor-stars" class="text-amber-500 font-bold text-xs flex items-center">
+                                                <i class="fa-solid fa-star mr-1 text-[11px]"></i>4.3
+                                            </span>
+                                            <span id="pk-competitor-reviews" class="text-[10px] text-slate-400 font-mono">2,890 則評論</span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2 text-xs">
+                                        <div class="p-2.5 rounded-lg bg-white border border-slate-200">
+                                            <div class="text-[10px] text-slate-700 font-bold flex items-center mb-1">
+                                                <i class="fa-solid fa-circle-dot mr-1.5 text-[11px] text-blue-500"></i>競品核心優勢
+                                            </div>
+                                            <p id="pk-competitor-adv" class="text-slate-600 text-[11px] leading-relaxed">冰淇淋與鮮蚵蝦類品項多元、學生年輕客群多</p>
+                                        </div>
+                                        <div class="p-2.5 rounded-lg bg-white border border-slate-200">
+                                            <div class="text-[10px] text-slate-700 font-bold flex items-center mb-1">
+                                                <i class="fa-solid fa-bullseye mr-1.5 text-[11px] text-blue-600"></i>競品潛在痛點 (我方切入點)
+                                            </div>
+                                            <p id="pk-competitor-disadv" class="text-slate-600 text-[11px] leading-relaxed">尖峰送餐漏單率較高、抽油煙排煙待加強</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ② 營運成長 ROI 驗證儀表板 (藍白純淨) -->
+                        <div class="pt-3 border-t border-slate-100 space-y-3 w-full min-w-0">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="font-bold text-slate-800 text-xs flex items-center">
+                                    <i class="fa-solid fa-chart-line text-blue-600 mr-1.5"></i>營運成長 ROI 驗證儀表板（週來客數成長曲線）
+                                </span>
+                                <span class="text-[11px] text-slate-400">POS 門市客流與 Google 評論交叉驗證</span>
+                            </div>
+
+                            <!-- 效益核心指標三欄 (純白底) -->
+                            <div class="grid grid-cols-3 gap-2.5">
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div class="text-[11px] text-slate-500 font-medium">預估來客數提升</div>
+                                    <div id="roi-growth-rate" class="text-base md:text-xl font-extrabold text-blue-600 font-mono mt-0.5">+32.0%</div>
+                                    <div class="text-[10px] text-slate-400">導入 4 週綜合成效</div>
+                                </div>
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div class="text-[11px] text-slate-500 font-medium">每週額外新增來客</div>
+                                    <div id="roi-weekly-lift" class="text-base md:text-xl font-extrabold text-slate-800 font-mono mt-0.5">+390 人</div>
+                                    <div class="text-[10px] text-slate-400">W4 達到 1,610 人/週</div>
+                                </div>
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+                                    <div class="text-[11px] text-slate-500 font-medium">預估單月營收增益</div>
+                                    <div id="roi-revenue-lift" class="text-base md:text-xl font-extrabold text-emerald-600 font-mono mt-0.5">+NT$ 35.1 萬</div>
+                                    <div class="text-[10px] text-slate-400">客單價與翻桌換算</div>
+                                </div>
+                            </div>
+
+                            <!-- 折線圖繪製區 (純白底極簡) -->
+                            <div class="w-full bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 overflow-hidden">
+                                <div class="relative w-full h-48 md:h-52 overflow-hidden">
+                                    <canvas id="roiGrowthChart" class="w-full h-full block"></canvas>
+                                </div>
+                                <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
+                                    <span id="roi-insight-text" class="flex items-center text-xs">
+                                        <i class="fa-solid fa-lightbulb text-blue-600 mr-1.5 shrink-0"></i>
+                                        <span>Phase 1 招牌特色文案吸引新客 +18.5%，搭配 Phase 2 負評痛點修復拉升回訪率 +13.5%，整體來客成長 +32.0%。</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- 行動端底部浮動視圖切換 Bar (僅在 < md 顯示，寬度加長、上下兩列顯示更舒適) -->
+        <nav aria-label="行動端切換"
+            class="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[1100] w-[92%] max-w-[390px] bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl flex items-center justify-between gap-2 border border-slate-700/80">
+            <button id="tab-map-btn" onclick="switchMobileTab('map')"
+                class="flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center bg-blue-600 text-white transition-all shadow-md">
+                <span class="flex items-center justify-center space-x-1.5 leading-tight">
+                    <i class="fa-solid fa-map-location-dot text-sm"></i>
+                    <span class="text-xs font-bold">地圖探索</span>
+                </span>
+                <span class="text-[10px] text-blue-100 font-normal leading-tight mt-0.5">商圈定位與店家</span>
+            </button>
+            <button id="tab-report-btn" onclick="switchMobileTab('report')"
+                class="flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all">
+                <span class="flex items-center justify-center space-x-1.5 leading-tight">
+                    <i class="fa-solid fa-chart-pie text-sm"></i>
+                    <span class="text-xs font-bold">AI 分析報告</span>
+                </span>
+                <span class="text-[10px] text-slate-400 font-normal leading-tight mt-0.5">診斷 · 公關 · 對標</span>
+            </button>
+        </nav>
+    </main>
+
+    <!-- PDF 簡報匯出預覽 Modal -->
+    <div id="export-modal" onclick="onBackdropClick(event)"
+        class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
+        <div id="export-modal-panel"
+            class="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-100 transform scale-95 transition-all duration-200">
+            <!-- Modal 頂部色彩橫條 -->
+            <div
+                class="px-6 py-4 bg-blue-600 text-white flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <div
+                        class="w-8 h-8 rounded-lg bg-white/20 border border-white/30 flex items-center justify-center text-white">
+                        <i class="fa-solid fa-file-code text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm leading-tight">AI 商家洞察分析簡報 (HTML / PDF 匯出)</h3>
+                        <p class="text-[11px] text-slate-300">StoreVoice Executive Report (.html / .pdf)</p>
+                    </div>
+                </div>
+                <button onclick="closeExportModal()"
+                    class="text-slate-400 hover:text-white transition w-8 h-8 min-h-[32px] flex items-center justify-center rounded-full hover:bg-white/10">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Modal 內容 -->
+            <div class="p-6 space-y-4 text-xs text-slate-600">
+                <!-- 預覽報告縮圖卡片 -->
+                <div class="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+                    <div class="flex justify-between items-start border-b border-slate-200/80 pb-3">
+                        <div>
+                            <span id="modal-store-category"
+                                class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">燒肉/鍋物</span>
+                            <h4 id="modal-store-name" class="font-bold text-sm text-slate-900 mt-1">相演無煙燒肉 (大興旗艦店)</h4>
+                            <p id="modal-store-addr" class="text-[11px] text-slate-500 mt-0.5">桃園市桃園區大興路136號</p>
+                        </div>
+                        <div class="text-right">
+                            <div id="modal-store-stars" class="text-amber-500 font-bold text-sm">★ 4.6</div>
+                            <div id="modal-store-reviews" class="text-[10px] text-slate-400">(4,852 則評論)</div>
+                        </div>
+                    </div>
+
+                    <!-- 簡報內容包含項目 -->
+                    <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-700 pt-1">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                            <span>情感聲量分佈統計圖</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                            <span>高頻顧客討論關鍵字</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                            <span>四大主題滿意度評分表</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-emerald-500 text-xs"></i>
+                            <span>LLM 營運改善行動方案</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-purple-600 text-xs"></i>
+                            <span>商圈競品 PK 對標矩陣</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-purple-600 text-xs"></i>
+                            <span>營運成長 ROI 驗證曲線</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 格式選擇與規格提示 -->
+                <div
+                    class="flex items-center justify-between text-[11px] px-1 text-slate-600 bg-blue-50/70 p-2.5 rounded-lg border border-blue-100">
+                    <span class="flex items-center space-x-1.5">
+                        <i class="fa-solid fa-desktop text-blue-600"></i>
+                        <span>預設目標路徑：<strong class="text-blue-700">電腦「桌面 (Desktop)」</strong></span>
+                    </span>
+                    <span class="text-emerald-700 font-medium flex items-center">
+                        <i class="fa-solid fa-file-code mr-1"></i> 副檔名：<strong>.html</strong> (免安裝可離線開啟)
+                    </span>
+                </div>
+
+                <!-- 模擬下載進度條 (預設隱藏) -->
+                <div id="modal-progress-container" class="hidden space-y-1.5 pt-1">
+                    <div class="flex justify-between text-[11px] font-medium text-slate-600">
+                        <span id="modal-progress-text">正在彙整評論數據並生成 .html 檔案...</span>
+                        <span id="modal-progress-percent" class="font-bold text-blue-600">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                        <div id="modal-progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-150"
+                            style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- 成功提示 (明確提示儲存於「桌面」與 .html 副檔名) -->
+                <div id="modal-success-alert"
+                    class="hidden p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-emerald-600 text-base"></i>
+                            <span class="font-bold text-emerald-900">實體檔案已成功匯出！</span>
+                        </div>
+                        <span id="downloaded-filename-badge"
+                            class="text-[10px] text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded font-mono font-semibold border border-emerald-200">
+                            StoreVoice_Report.html
+                        </span>
+                    </div>
+                    <div
+                        class="text-[11px] text-slate-700 bg-white/95 p-2.5 rounded-lg border border-emerald-100 space-y-1">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-1.5">
+                                <i class="fa-solid fa-desktop text-blue-600"></i>
+                                <span>檔案存放位置：</span>
+                                <strong class="text-blue-700 font-mono">電腦「桌面 (Desktop)」</strong>
+                            </div>
+                            <span class="text-[10px] text-slate-400 font-mono">副檔名：.html</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 pt-0.5">
+                            💡 提示：您可直接至桌面雙擊此 <strong>.html</strong> 檔案，即可離線瀏覽精美圖表與 AI 建言。
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                <button onclick="downloadJsonData()"
+                    class="text-xs text-slate-500 hover:text-slate-800 transition flex items-center space-x-1 min-h-[44px] px-2">
+                    <i class="fa-solid fa-code text-slate-400"></i>
+                    <span>匯出原始 JSON</span>
+                </button>
+                <div class="flex space-x-2">
+                    <button onclick="closeExportModal()"
+                        class="min-h-[44px] px-3.5 py-2 rounded-xl text-xs text-slate-600 hover:bg-slate-200 transition font-medium">
+                        關閉
+                    </button>
+                    <button onclick="executeExportToDesktop('pdf')"
+                        class="min-h-[44px] px-3.5 py-2 rounded-xl text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 transition font-medium inline-flex items-center space-x-1">
+                        <i class="fa-solid fa-file-pdf text-rose-500"></i>
+                        <span>下載 PDF (.pdf)</span>
+                    </button>
+                    <button id="modal-download-btn" onclick="executeExportToDesktop('html')"
+                        class="min-h-[44px] px-4 py-2 rounded-xl text-xs bg-blue-600 hover:bg-blue-700 text-white transition font-semibold inline-flex items-center space-x-1.5 shadow-sm">
+                        <i class="fa-solid fa-desktop text-blue-200"></i>
+                        <i class="fa-solid fa-file-code"></i>
+                        <span>下載 .html 至桌面</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 邏輯處理區 -->
+    <script>
+        // 1. 內建備援資料庫 (Fallback Database：確保於本地 file:// 協議直接雙擊時 100% 離線可用)
+        const fallbackStoresData = [
+        {
+                "id": "1",
+                "category": "燒肉/鍋物",
+                "name": "相演無煙燒肉 (大興旗艦店)",
+                "lat": 25.0062,
+                "lng": 121.3125,
+                "stars": "4.6",
+                "reviewCount": "4,852",
+                "address": "桃園市桃園區大興路136號 (近大有商圈)",
+                "signatureDish": "蔥鹽牛舌 & 大草蝦海鮮拼盤",
+                "targetAudience": "大口吃肉肉控、朋友歡聚、家庭慶生",
+                "sentiment": {
+                        "pos": 82,
+                        "neu": 11,
+                        "neg": 7
+                },
+                "radarScores": [
+                        4.7,
+                        4.9,
+                        4.7,
+                        4.4,
+                        4.2
+                ],
+                "pkStrengths": [
+                        "桌邊巡場換烤網神速",
+                        "肉質油花鮮甜且穩定",
+                        "大草蝦海鮮評價極高"
+                ],
+                "pkWeaknesses": [
+                        "尖峰2小時限時略感緊湊",
+                        "週末熱門時段一位難求"
+                ],
+                "competitors": [
+                        {
+                                "name": "野饌日式炭火燒肉 (中壢店)",
+                                "stars": "4.3",
+                                "reviews": "2,890",
+                                "scoreDiff": "+0.3",
+                                "reviewDiff": "+1,962",
+                                "adv": "冰淇淋與鮮蚵蝦類品項多元、學生年輕客群多",
+                                "disadv": "尖峰送餐漏單率較高、抽油煙排煙待加強"
+                        },
+                        {
+                                "name": "原燒 日式原味燒肉 (桃園統領店)",
+                                "stars": "4.4",
+                                "reviews": "3,450",
+                                "scoreDiff": "+0.2",
+                                "reviewDiff": "+1,402",
+                                "adv": "王品連鎖標準化服務穩定、商場環境好停車",
+                                "disadv": "單價偏高套餐份量偏精緻、肉食控滿足感略低"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                1180,
+                                1200,
+                                1190,
+                                1210,
+                                1220
+                        ],
+                        "after": [
+                                1180,
+                                1310,
+                                1430,
+                                1520,
+                                1610
+                        ],
+                        "growthRate": "+32.0%",
+                        "weeklyLift": "+390 人",
+                        "estMonthlyRevenue": "+NT$ 35.1 萬",
+                        "insights": "Phase 1 招牌特色文案吸引新客 +18.5%，搭配 Phase 2 負評痛點改善拉高回訪率 +13.5%，整體來客成長 +32.0%。"
+                },
+                "keywords": [
+                        {
+                                "word": "換烤網神速 (Grill Service)",
+                                "count": 210
+                        },
+                        {
+                                "word": "蔥鹽牛舌 (Beef Tongue)",
+                                "count": 185
+                        },
+                        {
+                                "word": "海鮮新鮮 (Seafood Quality)",
+                                "count": 142
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "桌邊服務 (Service)",
+                                "count": 320,
+                                "pos": 295,
+                                "neu": 15,
+                                "neg": 10,
+                                "score": "4.85"
+                        },
+                        {
+                                "name": "肉質水準 (Food)",
+                                "count": 410,
+                                "pos": 360,
+                                "neu": 30,
+                                "neg": 20,
+                                "score": "4.65"
+                        },
+                        {
+                                "name": "排煙與環境 (Atmosphere)",
+                                "count": 150,
+                                "pos": 135,
+                                "neu": 10,
+                                "neg": 5,
+                                "score": "4.70"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 5,
+                                "text": "服務人員換烤網的速度誇張快！肉質沒話說，蔥鹽牛舌與大草蝦必點！",
+                                "date": "2026-10-28"
+                        },
+                        {
+                                "stars": 4,
+                                "text": "尖峰用餐限時2小時稍微有點趕，但整體品質跟態度絕對對得起價格。",
+                                "date": "2026-10-15"
+                        }
+                ],
+                "aiAdvice": [
+                        "顧客對「桌邊巡場與換烤網速度」滿意度極高，此為最強護城河，應維持標準SOP。",
+                        "假日尖峰2小時限時略感緊湊，建議推廣離峰時段贈送特色肉品，有助於平滑尖離峰人流。"
+                ]
+        },
+        {
+                "id": "2",
+                "category": "中式/江浙",
+                "name": "點水樓 (南崁店)",
+                "lat": 25.0403,
+                "lng": 121.2925,
+                "stars": "4.1",
+                "reviewCount": "1,017",
+                "address": "桃園市蘆竹區榮譽街1號 (南崁商圈/特力屋旁)",
+                "signatureDish": "天然七彩小籠包 & 砂鍋火炯雞湯 & 烤鴨",
+                "targetAudience": "家庭聚會、商務宴客、江浙名菜老饕",
+                "sentiment": {
+                        "pos": 74,
+                        "neu": 16,
+                        "neg": 10
+                },
+                "radarScores": [
+                        4.6,
+                        4.4,
+                        4.7,
+                        3.8,
+                        4.2
+                ],
+                "pkStrengths": [
+                        "停車場超大且停車非常方便",
+                        "七彩小籠包皮薄多汁視覺極佳",
+                        "砂鍋火炯雞湯濃郁道地"
+                ],
+                "pkWeaknesses": [
+                        "母親節/節慶期間點菜或上菜動線較混亂",
+                        "部分菜色（如葱爆牛肉或餅皮）偶有過鹹或不夠熱的狀況"
+                ],
+                "competitors": [
+                        {
+                                "name": "鼎泰豐 (桃園遠百店)",
+                                "stars": "4.5",
+                                "reviews": "5,120",
+                                "scoreDiff": "-0.4",
+                                "reviewDiff": "-4,103",
+                                "adv": "全球知名度高、標準化速度快",
+                                "disadv": "百貨商場停車較不便、無獨立大包廂宴席"
+                        },
+                        {
+                                "name": "欣葉日本料理 (中茂店)",
+                                "stars": "4.2",
+                                "reviews": "2,980",
+                                "scoreDiff": "-0.1",
+                                "reviewDiff": "-1,963",
+                                "adv": "吃到飽品項豐富、藝文特區聚餐方便",
+                                "disadv": "取餐走道擁擠、長輩宴席隱私感不足"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                750,
+                                760,
+                                745,
+                                755,
+                                760
+                        ],
+                        "after": [
+                                750,
+                                820,
+                                890,
+                                950,
+                                1010
+                        ],
+                        "growthRate": "+34.7%",
+                        "weeklyLift": "+250 人",
+                        "estMonthlyRevenue": "+NT$ 32.5 萬",
+                        "insights": "優化節慶訂位與點菜流程後，客訴率下降 18%，搭配招牌雞湯與烤鴨行銷，每週來客數顯著提升 +34.7%。"
+                },
+                "keywords": [
+                        {
+                                "word": "砂鍋火炯雞湯 (Chicken Soup)",
+                                "count": 185
+                        },
+                        {
+                                "word": "天然七彩小籠包 (Xiao Long Bao)",
+                                "count": 160
+                        },
+                        {
+                                "word": "停車場很大 (Parking)",
+                                "count": 140
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "餐點美味 (Food)",
+                                "count": 310,
+                                "pos": 270,
+                                "neu": 25,
+                                "neg": 15,
+                                "score": "4.70"
+                        },
+                        {
+                                "name": "服務態度 (Service)",
+                                "count": 210,
+                                "pos": 160,
+                                "neu": 30,
+                                "neg": 20,
+                                "score": "4.20"
+                        },
+                        {
+                                "name": "停車與環境 (Environment)",
+                                "count": 180,
+                                "pos": 155,
+                                "neu": 15,
+                                "neg": 10,
+                                "score": "4.65"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 3,
+                                "text": "上星期六慶祝母親節，結帳時一位阿姨負責結帳，自己打完單怎麼付費？告知服務人員消軍。",
+                                "date": "5 個月前"
+                        },
+                        {
+                                "stars": 5,
+                                "text": "可惜年節訂位來吃，原本電話點的菜，全部沒記到...花了不少時間重新點菜。不過後面又有人客，吃得好趕... 但砂鍋火炯雞湯濃郁好喝！",
+                                "date": "8 個月前"
+                        }
+                ],
+                "aiAdvice": [
+                        "顧客對於「砂鍋火炯雞湯」與「七彩小籠包」的餐點口味給予極高評價，應作為主力社群素材。",
+                        "針對節慶訂位（如母親節/年節）曾發生點菜漏單或結帳混亂，建議導入數位化平板點餐與預先確認單機制以修復留存率。"
+                ]
+        },
+        {
+                "id": "3",
+                "category": "在地小吃/米干",
+                "name": "忠貞祖傳米干 (龍岡店)",
+                "lat": 24.9338,
+                "lng": 121.252,
+                "stars": "4.2",
+                "reviewCount": "3,840",
+                "address": "桃園市中壢區龍平路209號 (忠貞市場旁)",
+                "signatureDish": "祖傳黑湯米干 (加半熟蛋+肉片)",
+                "targetAudience": "傳統小吃老饕、忠貞市場觀光客、高CP銅板美食控",
+                "sentiment": {
+                        "pos": 76,
+                        "neu": 14,
+                        "neg": 10
+                },
+                "radarScores": [
+                        3.8,
+                        4.1,
+                        4.6,
+                        4.6,
+                        3.3
+                ],
+                "pkStrengths": [
+                        "黑湯焦香與半熟蛋獨門風味",
+                        "在地數十年老字號招牌",
+                        "銅板價高性價比"
+                ],
+                "pkWeaknesses": [
+                        "忠貞市場周邊極難停車",
+                        "排隊無發號碼牌動線混亂"
+                ],
+                "competitors": [
+                        {
+                                "name": "阿美米干 (旗艦店)",
+                                "stars": "4.1",
+                                "reviews": "6,200",
+                                "scoreDiff": "+0.1",
+                                "reviewDiff": "-2,360",
+                                "adv": "滇緬少數民族裝潢氣派、附設專屬停車場便利",
+                                "disadv": "米干湯頭較清淡偏商業化、老饕偏好度較低"
+                        },
+                        {
+                                "name": "國旗屋米干店",
+                                "stars": "4.0",
+                                "reviews": "4,520",
+                                "scoreDiff": "+0.2",
+                                "reviewDiff": "-680",
+                                "adv": "滿天國旗拍照視覺震撼、觀光話題熱度極高",
+                                "disadv": "座位狹窄衛生環境略差、服務態度評價兩極"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                2400,
+                                2430,
+                                2390,
+                                2420,
+                                2440
+                        ],
+                        "after": [
+                                2400,
+                                2680,
+                                2920,
+                                3110,
+                                3280
+                        ],
+                        "growthRate": "+34.4%",
+                        "weeklyLift": "+840 人",
+                        "estMonthlyRevenue": "+NT$ 16.8 萬",
+                        "insights": "聚焦「祖傳黑湯焦香＋半熟蛋爆漿」引爆 Instagram 探店，搭配停車指引化解客怨，客流大增 +34.4%。"
+                },
+                "keywords": [
+                        {
+                                "word": "黑湯焦香濃郁 (Black Broth)",
+                                "count": 240
+                        },
+                        {
+                                "word": "半熟蛋包肉片 (Egg & Pork)",
+                                "count": 195
+                        },
+                        {
+                                "word": "忠貞排隊老店 (Queue)",
+                                "count": 160
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "湯頭風味 (Flavor)",
+                                "count": 280,
+                                "pos": 250,
+                                "neu": 18,
+                                "neg": 12,
+                                "score": "4.60"
+                        },
+                        {
+                                "name": "排隊與停車 (Wait & Parking)",
+                                "count": 180,
+                                "pos": 90,
+                                "neu": 30,
+                                "neg": 60,
+                                "score": "3.25"
+                        },
+                        {
+                                "name": "性價比 (Value)",
+                                "count": 210,
+                                "pos": 185,
+                                "neu": 15,
+                                "neg": 10,
+                                "score": "4.50"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 5,
+                                "text": "湯頭焦香超級濃郁，半熟蛋戳破拌米干是一絕！中壢龍岡不可錯過的代表美味。",
+                                "date": "2026-10-27"
+                        },
+                        {
+                                "stars": 2,
+                                "text": "市場周邊極難停車，排隊動線常常被機車卡住，希望能有號碼牌機制。",
+                                "date": "2026-10-12"
+                        }
+                ],
+                "aiAdvice": [
+                        "負評主因集中於停車與市場人潮混雜，建議在 Google 商家頁清楚標註周邊收費停車場步行指引。",
+                        "可於上午外帶高峰啟用線上點餐快取通道，減少店前排隊人潮壅塞問題。"
+                ]
+        },
+        {
+                "id": "4",
+                "category": "異國/日料",
+                "name": "坐著做。海鮮丼飯專門店",
+                "lat": 24.9622,
+                "lng": 121.2245,
+                "stars": "4.5",
+                "reviewCount": "3,120",
+                "address": "桃園市中壢區九和一街18號2樓 (威尼斯影城商圈)",
+                "signatureDish": "豪華特選海鮮丼 (海膽/干貝/鮮魚味噌湯免費續)",
+                "targetAudience": "情侶約會、威尼斯看電影首選、澎湃海鮮丼飯控",
+                "sentiment": {
+                        "pos": 84,
+                        "neu": 10,
+                        "neg": 6
+                },
+                "radarScores": [
+                        4.2,
+                        4.4,
+                        4.8,
+                        4.6,
+                        4
+                ],
+                "pkStrengths": [
+                        "醋飯與鮮魚味噌湯免費無限續",
+                        "海膽干貝新鮮大份量",
+                        "威尼斯影城商圈約會首選"
+                ],
+                "pkWeaknesses": [
+                        "店內桌距緊湊稍顯擁擠",
+                        "尖峰排隊無預約現場乾等"
+                ],
+                "competitors": [
+                        {
+                                "name": "瞞著爹 (中壢海鮮丼門市)",
+                                "stars": "4.2",
+                                "reviews": "1,890",
+                                "scoreDiff": "+0.3",
+                                "reviewDiff": "+1,230",
+                                "adv": "老宅日式居酒屋風情、生魚片擺盤具文青感",
+                                "disadv": "單價偏高無免費續湯、座位侷促翻桌慢"
+                        },
+                        {
+                                "name": "墨 sumi 海鮮丼 (桃園店)",
+                                "stars": "4.4",
+                                "reviews": "2,150",
+                                "scoreDiff": "+0.1",
+                                "reviewDiff": "+970",
+                                "adv": "海鮮份量紮實、醋飯調味適中且服務親切",
+                                "disadv": "門市座位極少尖峰排隊久、無影城商圈地利"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                950,
+                                960,
+                                940,
+                                970,
+                                960
+                        ],
+                        "after": [
+                                950,
+                                1060,
+                                1160,
+                                1220,
+                                1280
+                        ],
+                        "growthRate": "+33.3%",
+                        "weeklyLift": "+320 人",
+                        "estMonthlyRevenue": "+NT$ 22.4 萬",
+                        "insights": "大打「鮮魚味噌湯免費無限續＋威尼斯約會首選」文案，LINE叫號降低排隊棄單率，成長 +33.3%。"
+                },
+                "keywords": [
+                        {
+                                "word": "醋飯鮮魚湯免費續 (Free Refill)",
+                                "count": 180
+                        },
+                        {
+                                "word": "海膽干貝新鮮 (Uni & Scallop)",
+                                "count": 155
+                        },
+                        {
+                                "word": "份量大CP高 (Huge Portion)",
+                                "count": 135
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "海鮮新鮮度 (Freshness)",
+                                "count": 310,
+                                "pos": 290,
+                                "neu": 12,
+                                "neg": 8,
+                                "score": "4.80"
+                        },
+                        {
+                                "name": "性價比感受 (Value)",
+                                "count": 220,
+                                "pos": 195,
+                                "neu": 15,
+                                "neg": 10,
+                                "score": "4.55"
+                        },
+                        {
+                                "name": "候位與桌距 (Wait & Seating)",
+                                "count": 90,
+                                "pos": 50,
+                                "neu": 20,
+                                "neg": 20,
+                                "score": "3.60"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 5,
+                                "text": "滿滿一碗澎湃海鮮丼！醋飯拌著鮮甜海膽超滿足，蝦頭味噌湯竟然能免費續！",
+                                "date": "2026-10-26"
+                        },
+                        {
+                                "stars": 4,
+                                "text": "排隊登記後大概等了25分鐘，位置稍微擠了點，但餐點真的沒話說。",
+                                "date": "2026-10-03"
+                        }
+                ],
+                "aiAdvice": [
+                        "「醋飯、鮮魚味噌湯免費續加」是顧客極高轉傳口碑，請嚴格維持湯料品質穩定度。",
+                        "商圈具備看電影與逛街人流，建議導入 LINE 叫號提醒，降低顧客現場乾等的不耐煩感。"
+                ]
+        },
+        {
+                "id": "5",
+                "category": "港式茶餐廳",
+                "name": "永芯茶檔 茶餐廳",
+                "lat": 24.9575,
+                "lng": 121.229,
+                "stars": "4.4",
+                "reviewCount": "2,240",
+                "address": "桃園市中壢區榮民路164號 (近內壢車站)",
+                "signatureDish": "爆漿流沙西多士 & 招牌沙嗲牛肉撈麵",
+                "targetAudience": "Instagram 打卡狂熱者、港式點心狂、學生朋友聚會",
+                "sentiment": {
+                        "pos": 79,
+                        "neu": 13,
+                        "neg": 8
+                },
+                "radarScores": [
+                        4.7,
+                        4.3,
+                        4.5,
+                        4.2,
+                        4.3
+                ],
+                "pkStrengths": [
+                        "復古香港霓虹街景極好拍照",
+                        "爆漿流沙西多士社群傳播強",
+                        "沙嗲牛肉撈麵口味道地"
+                ],
+                "pkWeaknesses": [
+                        "現點現做尖峰出餐稍慢",
+                        "內壢周邊車位較難尋找"
+                ],
+                "competitors": [
+                        {
+                                "name": "美生餐室 (中壢店)",
+                                "stars": "4.1",
+                                "reviews": "2,780",
+                                "scoreDiff": "+0.3",
+                                "reviewDiff": "-540",
+                                "adv": "老字號懷舊香港街邊裝潢、價格平價親民",
+                                "disadv": "餐點品質偶有起伏、服務節奏較匆忙"
+                        },
+                        {
+                                "name": "朗談茶餐廳 (內壢店)",
+                                "stars": "4.3",
+                                "reviews": "1,420",
+                                "scoreDiff": "+0.1",
+                                "reviewDiff": "+820",
+                                "adv": "煲仔飯與特調凍檸茶香濃道地、在地老饕愛店",
+                                "disadv": "店面規模小出餐速度慢、缺少社群打卡爆點"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                880,
+                                890,
+                                870,
+                                895,
+                                900
+                        ],
+                        "after": [
+                                880,
+                                980,
+                                1070,
+                                1140,
+                                1210
+                        ],
+                        "growthRate": "+34.4%",
+                        "weeklyLift": "+310 人",
+                        "estMonthlyRevenue": "+NT$ 20.2 萬",
+                        "insights": "「爆漿流沙西多士」短影音吸納新客，搭配公關回覆化解現點現做出餐等待期，營收穩步攀升 +34.4%。"
+                },
+                "keywords": [
+                        {
+                                "word": "沙嗲牛肉撈麵 (Satay Beef)",
+                                "count": 145
+                        },
+                        {
+                                "word": "流沙西多士 (French Toast)",
+                                "count": 120
+                        },
+                        {
+                                "word": "復古香港街景 (Hong Kong Vibe)",
+                                "count": 110
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "餐點道地感 (Authenticity)",
+                                "count": 230,
+                                "pos": 200,
+                                "neu": 15,
+                                "neg": 15,
+                                "score": "4.50"
+                        },
+                        {
+                                "name": "裝潢氛圍 (Atmosphere)",
+                                "count": 160,
+                                "pos": 145,
+                                "neu": 10,
+                                "neg": 5,
+                                "score": "4.65"
+                        },
+                        {
+                                "name": "出餐速度 (Serving Speed)",
+                                "count": 110,
+                                "pos": 75,
+                                "neu": 15,
+                                "neg": 20,
+                                "score": "3.80"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 5,
+                                "text": "港味十足！沙嗲牛麵濃香微辣，西多士切開爆漿流沙，店內復古霓虹燈氣氛絕佳！",
+                                "date": "2026-10-21"
+                        },
+                        {
+                                "stars": 3,
+                                "text": "餐點現點現做人多時稍慢，但食物品質依然保持水準。",
+                                "date": "2026-09-28"
+                        }
+                ],
+                "aiAdvice": [
+                        "復古街景裝潢與爆漿視覺極具 Instagram 傳播力，可強化打卡贈港飲等自媒體行銷。",
+                        "現點現做的出餐空檔可透過桌邊掃碼加水、小食預先出餐改善等待體驗。"
+                ]
+        },
+        {
+                "id": "6",
+                "category": "異國/餐酒館",
+                "name": "Postman 郵差先生義式臺菜小館 (中壢本店)",
+                "lat": 24.9583,
+                "lng": 121.224,
+                "stars": "4.6",
+                "reviewCount": "1,480",
+                "address": "桃園市中壢區延平路452號1樓 (近中壢監理站)",
+                "signatureDish": "甜洋蔥起司雞肉水管麵 & 直火炙燒牛橫膈膜 & 自製海膽蕃茄抹醬",
+                "targetAudience": "義式餐酒館老饕、質感約會、質感家庭聚餐、慶生約會",
+                "sentiment": {
+                        "pos": 86,
+                        "neu": 9,
+                        "neg": 5
+                },
+                "radarScores": [
+                        4.8,
+                        4.7,
+                        4.8,
+                        4.2,
+                        4.3
+                ],
+                "pkStrengths": [
+                        "台式在地食材融合義式料理手法，極具創意驚喜",
+                        "開放式廚房吧台氛圍溫馨且衛生看得見",
+                        "服務人員親切細心，聚餐氣氛極佳"
+                ],
+                "pkWeaknesses": [
+                        "假日及平日晚餐每人低消 $700 門檻稍高",
+                        "店面位於大馬路旁，車流量大且無專屬停車場"
+                ],
+                "competitors": [
+                        {
+                                "name": "坐著做。海鮮丼飯專門店",
+                                "stars": "4.5",
+                                "reviews": "3,120",
+                                "scoreDiff": "+0.1",
+                                "reviewDiff": "-1,640",
+                                "adv": "海鮮丼飯份量澎湃、味噌湯無限續",
+                                "disadv": "座位桌距較緊湊、無餐酒館微醺氛圍"
+                        },
+                        {
+                                "name": "W.D. 泰式餐酒館",
+                                "stars": "4.4",
+                                "reviews": "1,850",
+                                "scoreDiff": "+0.2",
+                                "reviewDiff": "-370",
+                                "adv": "網美打卡霓虹燈光佈景、調酒選擇多元",
+                                "disadv": "餐點口味偏重辣、主食選擇相對單一"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                850,
+                                860,
+                                845,
+                                855,
+                                850
+                        ],
+                        "after": [
+                                850,
+                                940,
+                                1030,
+                                1110,
+                                1190
+                        ],
+                        "growthRate": "+40.0%",
+                        "weeklyLift": "+340 人",
+                        "estMonthlyRevenue": "+NT$ 28.5 萬",
+                        "insights": "透過 Phase 1 義式台菜創意吸睛文案吸引年輕族群，搭配 Phase 2 預約與低消說明優化，每週來客數大幅成長 +40.0%。"
+                },
+                "keywords": [
+                        {
+                                "word": "義式台菜創意融合 (Creative Fusion)",
+                                "count": 220
+                        },
+                        {
+                                "word": "甜洋蔥起司水管麵 (Rigatoni)",
+                                "count": 190
+                        },
+                        {
+                                "word": "開放式廚房吧台 (Bar Vibe)",
+                                "count": 155
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "餐點創意與美味 (Food)",
+                                "count": 340,
+                                "pos": 310,
+                                "neu": 20,
+                                "neg": 10,
+                                "score": "4.80"
+                        },
+                        {
+                                "name": "空間氛圍 (Atmosphere)",
+                                "count": 240,
+                                "pos": 220,
+                                "neu": 15,
+                                "neg": 5,
+                                "score": "4.75"
+                        },
+                        {
+                                "name": "消費價位 (Price/Value)",
+                                "count": 160,
+                                "pos": 120,
+                                "neu": 25,
+                                "neg": 15,
+                                "score": "4.20"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 5,
+                                "text": "台式元素與義式料理手法完美結合！甜洋蔥起司雞肉水管麵濃郁不膩口，牛橫膈膜炭香十足，非常驚豔！",
+                                "date": "2026-10-18"
+                        },
+                        {
+                                "stars": 4,
+                                "text": "環境非常有質感且溫馨，開放式廚房看得到料理過程很安心。低消700元稍高一點點，但餐點水準絕對值得。",
+                                "date": "2026-09-25"
+                        }
+                ],
+                "aiAdvice": [
+                        "「義式台菜創意融合」是極強的市場差異化定位，應在 IG / Threads 持續發布主廚板前料理短影音。",
+                        "針對無專屬停車場的痛點，建議在地圖或訂位須知頁面中主動標註「周邊中壢監理站付費停車場」步行指引，提升顧客到訪便利性。"
+                ]
+        },
+        {
+                "id": "7",
+                "category": "港點/百匯",
+                "name": "廚窗港點 (村民食堂藝文旗艦店)",
+                "lat": 25.0155,
+                "lng": 121.299,
+                "stars": "4.5",
+                "reviewCount": "7,480",
+                "address": "桃園市桃園區中正路1078號 (藝文特區展演中心旁)",
+                "signatureDish": "鮮蝦金沙腸粉 & 鮑汁鮮竹捲 & 頂級冰品暢飲",
+                "targetAudience": "家庭週末慶生聚餐、公司犒賞包廂、港點愛好者",
+                "sentiment": {
+                        "pos": 84,
+                        "neu": 10,
+                        "neg": 6
+                },
+                "radarScores": [
+                        4.8,
+                        4.6,
+                        4.7,
+                        4.4,
+                        4.3
+                ],
+                "pkStrengths": [
+                        "百道手工港點現點現蒸新鮮度極高",
+                        "藝文特區挑高氣派裝潢好停車",
+                        "名牌冰淇淋與生啤果汁無限暢飲"
+                ],
+                "pkWeaknesses": [
+                        "熱門蒸籠出爐區尖峰需排隊取餐",
+                        "週末用餐限時兩小時翻桌較緊湊"
+                ],
+                "competitors": [
+                        {
+                                "name": "漢來海港餐廳 (桃園台茂店)",
+                                "stars": "4.3",
+                                "reviews": "6,210",
+                                "scoreDiff": "+0.2",
+                                "reviewDiff": "+1,270",
+                                "adv": "海鮮生魚片品項極為豐富、甜點種類多元",
+                                "disadv": "價格帶偏高、客怨集中於尖峰取餐動線壅塞"
+                        },
+                        {
+                                "name": "點點心 (桃園新光影城店)",
+                                "stars": "4.1",
+                                "reviews": "3,150",
+                                "scoreDiff": "+0.4",
+                                "reviewDiff": "+4,330",
+                                "adv": "單點式港點打卡造型吸睛、進駐影城聚客強",
+                                "disadv": "單價偏高份量精緻、缺少百匯暢飲高性價比"
+                        }
+                ],
+                "roiGrowth": {
+                        "labels": [
+                                "基準期 (Baseline)",
+                                "第 1 週 (W1)",
+                                "第 2 週 (W2)",
+                                "第 3 週 (W3)",
+                                "第 4 週 (W4)"
+                        ],
+                        "before": [
+                                1420,
+                                1450,
+                                1410,
+                                1460,
+                                1440
+                        ],
+                        "after": [
+                                1420,
+                                1590,
+                                1720,
+                                1830,
+                                1950
+                        ],
+                        "growthRate": "+35.4%",
+                        "weeklyLift": "+510 人",
+                        "estMonthlyRevenue": "+NT$ 40.8 萬",
+                        "insights": "主打「蒸籠現出爐直送＋哈根達斯暢飲」文案大幅吸納新客，結合公關道歉化解尖峰排隊焦慮，帶動來客成長 +35.4%。"
+                },
+                "keywords": [
+                        {
+                                "word": "金沙鮮蝦腸粉 (Shrimp Roll)",
+                                "count": 245
+                        },
+                        {
+                                "word": "現蒸燒賣點心 (Fresh Dim Sum)",
+                                "count": 210
+                        },
+                        {
+                                "word": "生啤冰品無限暢飲 (Free Beer)",
+                                "count": 180
+                        }
+                ],
+                "themes": [
+                        {
+                                "name": "點心現做口感 (Freshness)",
+                                "count": 420,
+                                "pos": 390,
+                                "neu": 20,
+                                "neg": 10,
+                                "score": "4.82"
+                        },
+                        {
+                                "name": "環境與空間舒適 (Atmosphere)",
+                                "count": 320,
+                                "pos": 295,
+                                "neu": 15,
+                                "neg": 10,
+                                "score": "4.70"
+                        },
+                        {
+                                "name": "尖峰取餐排隊 (Wait Times)",
+                                "count": 160,
+                                "pos": 90,
+                                "neu": 35,
+                                "neg": 35,
+                                "score": "3.75"
+                        }
+                ],
+                "recentReviews": [
+                        {
+                                "stars": 5,
+                                "date": "3 天前",
+                                "text": "腸粉超級滑嫩、鮮蝦超大隻！現蒸點心熱騰騰出爐超有誠意，空間挑高完全沒有壓迫感，全家慶生選這裡長輩超滿意！"
+                        },
+                        {
+                                "stars": 3,
+                                "date": "1 週前",
+                                "text": "餐點品質沒話說，但週六中午人潮真的太誇張，炸物和蒸籠出爐區要排隊好幾分鐘，限時兩小時吃得稍微有點趕。"
+                        }
+                ],
+                "aiAdvice": [
+                        "針對尖峰蒸籠出餐動線設置「雙出餐道」分流，可降低顧客等候焦慮 25%。",
+                        "LINE 會員預約推行離峰時段九折優惠，可有效平抑週末尖峰並活化平日來客。"
+                ]
+        }
+];
+
+        let storesData = [...fallbackStoresData];
+
+        // 2. 全域狀態管理
+        let map;
+        let markers = {};
+        let sentimentChart;
+        let roiGrowthChart;
+        let currentDashboardTab = 'overview'; // 'overview' | 'retention' | 'benchmark'
+        let activeStoreId = '1';
+        let currentSearchQuery = '';
+        let currentCategory = 'all';
+        let currentSort = 'default';
+        let currentMarketingTone = 'ig'; // 'ig' | 'promo' | 'foodie'
+        let currentPrStrategy = 'apology'; // 'apology' | 'invitation' | 'clarification'
+        let selectedPainIndex = 0;
+        let currentCompetitorIndex = 0;
+        let filteredStores = [];
+
+        // 3. 頁面載入後初始化與異步載入 stores.json
+        window.onload = async function () {
+            initMap();
+            bindSearchEvents();
+            await loadStoresData();
+            applyFilters(false);
+
+            // 監聽視窗尺寸變更，避免 Leaflet 出現灰色區塊
+            window.addEventListener('resize', () => {
+                if (map) map.invalidateSize();
+            });
+        };
+
+        // 異步讀取 stores.json (資料與介面分離策略)
+        async function loadStoresData() {
+            try {
+                const response = await fetch('./stores.json');
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                const data = await response.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    storesData = data;
+                    filteredStores = [...storesData];
+                    console.log('✅ [StoreVoice] 成功從 stores.json 動態載入店家資料，共 ' + storesData.length + ' 家');
+                    return;
+                }
+            } catch (err) {
+                console.warn('⚠️ [StoreVoice] fetch stores.json 受限於瀏覽器 local file:// 安全策略，自動切換至內建備援資料庫：', err.message);
+            }
+            storesData = fallbackStoresData;
+            filteredStores = [...storesData];
+        }
+
+        // 4. 初始化 Leaflet 地圖 (以桃園市為核心，免 Google Maps API Key 即可使用)
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: true,
+                attributionControl: false
+            }).setView([24.9750, 121.2750], 12);
+
+            const googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            });
+
+            const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                subdomains: 'abcd'
+            });
+
+            const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            });
+
+            googleRoadmap.addTo(map);
+
+            L.control.layers({
+                "Google 街景圖 (免Key)": googleRoadmap,
+                "Carto 現代清新圖": cartoVoyager,
+                "OpenStreetMap": osmStandard
+            }, null, { position: 'topright' }).addTo(map);
+
+            const wrapper = document.getElementById('map-wrapper');
+            if (window.ResizeObserver && wrapper) {
+                new ResizeObserver(() => {
+                    if (map) map.invalidateSize();
+                }).observe(wrapper);
+            }
+
+            [50, 200, 500].forEach(ms => setTimeout(() => {
+                if (map) map.invalidateSize();
+            }, ms));
+        }
+
+        // 5. 生成客製化地圖 Pin 圖標 (含評分、店名與選中光圈)
+        function createCustomMarkerIcon(store, isActive) {
+            return L.divIcon({
+                className: 'custom-pin-wrapper',
+                html: `
+                    <div id="pin-${store.id}" class="custom-map-pin ${isActive ? 'active' : ''}">
+                        <span class="text-amber-400 font-bold mr-1 text-xs">★</span>
+                        <span class="font-bold text-xs mr-1">${store.stars}</span>
+                        <span class="text-[11px] font-medium truncate max-w-[85px]">${store.name.split(' ')[0]}</span>
+                    </div>
+                `,
+                iconSize: [120, 32],
+                iconAnchor: [60, 16],
+                popupAnchor: [0, -18]
+            });
+        }
+
+        // 渲染與更新地圖客製化 Markers
+        function renderMarkers() {
+            Object.values(markers).forEach(m => map.removeLayer(m));
+            markers = {};
+
+            filteredStores.forEach(store => {
+                const isActive = store.id === activeStoreId;
+                const marker = L.marker([store.lat, store.lng], {
+                    icon: createCustomMarkerIcon(store, isActive)
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div class="text-xs space-y-1.5 p-1 min-w-[200px]">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">${store.category}</span>
+                            <span class="text-amber-500 font-bold">★ ${store.stars}</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900 text-sm mt-1">${store.name}</h4>
+                        <p class="text-[11px] text-slate-500">${store.address}</p>
+                        <div class="text-[11px] text-slate-400">Google 評論數：${store.reviewCount} 則</div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <button onclick="selectStore('${store.id}')" class="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-1">
+                                <span>載入分析報告</span>
+                                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                            </button>
+                            <button onclick="switchMobileTab('report'); selectStore('${store.id}')" class="text-xs text-blue-600 font-semibold underline md:hidden">
+                                查看報告
+                            </button>
+                        </div>
+                    </div>
+                `);
+
+                marker.on('click', () => {
+                    selectStore(store.id, false);
+                });
+
+                markers[store.id] = marker;
+            });
+        }
+
+        // 6. 渲染左側店家卡片 (包含平滑觸控滑動支援與 Snap 特性)
+        function renderStoreCards() {
+            const container = document.getElementById('store-list');
+            if (filteredStores.length === 0) {
+                container.innerHTML = `
+                    <div class="w-full py-4 px-2 text-center text-xs text-slate-400">
+                        <i class="fa-solid fa-circle-exclamation text-amber-500 mr-1"></i>
+                        查無符合條件的桃園店家，請更換關鍵字或 
+                        <button onclick="resetAllFilters()" class="text-blue-600 underline font-semibold">重設篩選</button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredStores.map(store => `
+                <div id="card-${store.id}" onclick="selectStore('${store.id}', true)" 
+                     class="store-card shrink-0 w-60 p-3.5 rounded-xl border border-slate-200 bg-white cursor-pointer hover:border-blue-400 hover:shadow-md transition-all snap-start ${store.id === activeStoreId ? 'active' : ''}">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">${store.category}</span>
+                        <span class="text-amber-500 font-bold text-xs">★ ${store.stars}</span>
+                    </div>
+                    <h4 class="font-bold text-xs text-slate-900 truncate mt-1.5">${store.name}</h4>
+                    <p class="text-[11px] text-slate-400 truncate mt-0.5">${store.address}</p>
+                    <div class="flex items-center justify-between mt-2.5 pt-1.5 border-t border-slate-100 text-[10px] text-slate-500">
+                        <span>${store.reviewCount} 則評論</span>
+                        <span class="text-blue-600 font-semibold flex items-center">
+                            <span>AI 洞察</span>
+                            <i class="fa-solid fa-chevron-right ml-1 text-[9px]"></i>
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 7. 切換店家與同步 UI (含水波紋雷達與平滑過渡動效)
+        function selectStore(storeId, autoPan = true) {
+            const previousStoreId = activeStoreId;
+            activeStoreId = storeId;
+            selectedPainIndex = 0; // 重設痛點選擇為第 1 項
+            currentCompetitorIndex = 0; // 重設同業競爭對手為第 1 項
+            const selectedStore = storesData.find(s => s.id === storeId);
+            if (!selectedStore) return;
+
+            if (markers[previousStoreId]) {
+                const prevPin = document.getElementById(`pin-${previousStoreId}`);
+                if (prevPin) prevPin.classList.remove('active');
+            }
+            if (markers[storeId]) {
+                const curPin = document.getElementById(`pin-${storeId}`);
+                if (curPin) curPin.classList.add('active');
+
+                if (autoPan && map) {
+                    map.panTo([selectedStore.lat, selectedStore.lng], { animate: true });
+                }
+                markers[storeId].openPopup();
+            }
+
+            document.querySelectorAll('.store-card').forEach(card => card.classList.remove('active'));
+            const activeCard = document.getElementById(`card-${storeId}`);
+            if (activeCard) {
+                activeCard.classList.add('active');
+                activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+
+            const dashContent = document.getElementById('dashboard-content');
+            if (dashContent) {
+                dashContent.classList.remove('dashboard-fade-in');
+                void dashContent.offsetWidth;
+                dashContent.classList.add('dashboard-fade-in');
+            }
+
+            updateDashboard(selectedStore);
+        }
+
+        // 8. 搜尋輸入事件處理解耦與全域化
+        function onSearchInput(value) {
+            currentSearchQuery = value || '';
+            // 使用者主動鍵入搜尋字詞時，若目前選取特定分類，自動重設為 'all'（全部），確保全域搜尋無死角
+            if (currentSearchQuery.trim().length > 0 && currentCategory !== 'all') {
+                currentCategory = 'all';
+                document.querySelectorAll('.cat-pill').forEach(btn => {
+                    if (btn.getAttribute('data-cat') === 'all') {
+                        btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-sm transition inline-flex items-center justify-center";
+                    } else {
+                        btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center";
+                    }
+                });
+            }
+            applyFilters(true);
+        }
+
+        // 9. 搜尋與過濾核心處理器
+        function applyFilters(autoPan = true) {
+            const query = (currentSearchQuery || '').trim().toLowerCase();
+
+            filteredStores = storesData.filter(store => {
+                if (!store) return false;
+
+                const nameMatch = store.name && store.name.toLowerCase().includes(query);
+                const addrMatch = store.address && store.address.toLowerCase().includes(query);
+                const catMatch = store.category && store.category.toLowerCase().includes(query);
+                const dishMatch = store.signatureDish && store.signatureDish.toLowerCase().includes(query);
+                const audMatch = store.targetAudience && store.targetAudience.toLowerCase().includes(query);
+                const kwMatch = Array.isArray(store.keywords) && store.keywords.some(k => k && k.word && k.word.toLowerCase().includes(query));
+                const themeMatch = Array.isArray(store.themes) && store.themes.some(t => t && t.name && t.name.toLowerCase().includes(query));
+                const pkMatch = Array.isArray(store.pkStrengths) && store.pkStrengths.some(p => p && p.toLowerCase().includes(query));
+
+                const matchSearch = !query || nameMatch || addrMatch || catMatch || dishMatch || audMatch || kwMatch || themeMatch || pkMatch;
+                const matchCategory = currentCategory === 'all' || store.category === currentCategory;
+
+                return matchSearch && matchCategory;
+            });
+
+            if (currentSort === 'stars') {
+                filteredStores.sort((a, b) => parseFloat(b.stars) - parseFloat(a.stars));
+            } else if (currentSort === 'reviews') {
+                filteredStores.sort((a, b) => parseInt(b.reviewCount.replace(/,/g, '')) - parseInt(a.reviewCount.replace(/,/g, '')));
+            }
+
+            updateSearchStatusUI();
+            renderMarkers();
+            renderStoreCards();
+
+            if (filteredStores.length > 0) {
+                const stillExists = filteredStores.find(s => s.id === activeStoreId);
+                const targetStore = stillExists || filteredStores[0];
+                selectStore(targetStore.id, autoPan);
+
+                if (autoPan && map) {
+                    if (filteredStores.length === 1) {
+                        map.setView([targetStore.lat, targetStore.lng], 15, { animate: true });
+                    } else if (filteredStores.length > 1 && Object.keys(markers).length > 0) {
+                        try {
+                            const group = L.featureGroup(Object.values(markers));
+                            const bounds = group.getBounds();
+                            if (bounds && bounds.isValid()) {
+                                map.fitBounds(bounds.pad(0.18));
+                            }
+                        } catch (e) {
+                            console.warn("fitBounds skipped:", e);
+                        }
+                    }
+                }
+            } else {
+                renderEmptyDashboard();
+            }
+        }
+
+        // 10. 查無符合條件店家時的優雅提示
+        function renderEmptyDashboard() {
+            const titleEl = document.getElementById('report-title');
+            if (titleEl) titleEl.innerText = "查無符合條件的店家";
+            const catEl = document.getElementById('report-category');
+            if (catEl) catEl.innerText = "搜尋結果為空";
+            const addrEl = document.getElementById('report-address');
+            if (addrEl) addrEl.innerHTML = '<i class="fa-solid fa-circle-info text-amber-500 mr-1.5"></i> 請嘗試更換搜尋關鍵字（如：相演、中壢、米干）或 <button onclick="resetAllFilters()" class="text-blue-600 underline font-semibold">重設篩選</button>';
+            const starEl = document.getElementById('report-stars');
+            if (starEl) starEl.innerText = "—";
+            const revEl = document.getElementById('report-reviews');
+            if (revEl) revEl.innerText = "(0 則評論)";
+
+            const kwContainer = document.getElementById('keywords-container');
+            if (kwContainer) {
+                kwContainer.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">查無相關關鍵字資料</div>';
+            }
+            const copyArea = document.getElementById('copywriting-text');
+            if (copyArea) {
+                copyArea.innerText = "查無店家資料，請重新搜尋或重設條件。";
+            }
+        }
+
+        // 11. 更新搜尋與筆數狀態 UI
+        function updateSearchStatusUI() {
+            const countLabel = document.getElementById('search-count-label');
+            const countBadge = document.getElementById('store-count-badge');
+            const clearBtn = document.getElementById('search-clear-btn');
+
+            if (countLabel) {
+                countLabel.innerText = "顯示中：桃園市 " + filteredStores.length + " 家店家 (共 " + storesData.length + " 家)";
+            }
+            if (countBadge) {
+                countBadge.innerText = filteredStores.length + " 家店家";
+            }
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', !currentSearchQuery);
+            }
+        }
+
+        // 12. 綁定搜尋輸入監聽
+        function bindSearchEvents() {
+            const searchInput = document.getElementById('store-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    onSearchInput(e.target.value);
+                });
+                searchInput.addEventListener('change', (e) => {
+                    onSearchInput(e.target.value);
+                });
+                searchInput.addEventListener('keyup', (e) => {
+                    if (e.key === 'Enter') {
+                        searchInput.blur();
+                    }
+                });
+            }
+        }
+
+        function setCategoryFilter(category) {
+            currentCategory = category;
+
+            document.querySelectorAll('.cat-pill').forEach(btn => {
+                if (btn.getAttribute('data-cat') === category) {
+                    btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-sm transition inline-flex items-center justify-center";
+                } else {
+                    btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center";
+                }
+            });
+
+            applyFilters(true);
+        }
+
+        function onSortChange(sortType) {
+            currentSort = sortType;
+            applyFilters(false);
+        }
+
+        function clearSearch() {
+            const searchInput = document.getElementById('store-search-input');
+            if (searchInput) searchInput.value = '';
+            currentSearchQuery = '';
+            applyFilters(true);
+        }
+
+        function resetAllFilters() {
+            const searchInput = document.getElementById('store-search-input');
+            if (searchInput) searchInput.value = '';
+            currentSearchQuery = '';
+
+            const sortSelect = document.getElementById('sort-select');
+            if (sortSelect) sortSelect.value = 'default';
+            currentSort = 'default';
+
+            setCategoryFilter('all');
+        }
+
+        // 13. 切換頂部功能 Tab (仿 Google Maps 極簡文字導覽與藍色底線切換)
+        function switchDashboardTab(tab) {
+            currentDashboardTab = tab;
+
+            const tabs = ['overview', 'retention', 'benchmark'];
+            tabs.forEach(t => {
+                const btn = document.getElementById("dash-tab-btn-" + t) || document.getElementById("tab-btn-" + t);
+                const pane = document.getElementById("dash-panel-" + t) || document.getElementById("tab-pane-" + t);
+
+                if (t === tab) {
+                    if (btn) {
+                        btn.className = "dash-tab-btn flex-1 min-h-[44px] py-3 text-center text-xs md:text-sm transition-all border-b-2 border-blue-600 text-blue-600 font-bold cursor-pointer whitespace-nowrap flex items-center justify-center";
+                        btn.setAttribute('aria-selected', 'true');
+                    }
+                    if (pane) {
+                        pane.classList.remove('hidden');
+                    }
+                } else {
+                    if (btn) {
+                        btn.className = "dash-tab-btn flex-1 min-h-[44px] py-3 text-center text-xs md:text-sm transition-all border-b-2 border-transparent text-slate-500 hover:text-slate-800 font-medium cursor-pointer whitespace-nowrap flex items-center justify-center";
+                        btn.setAttribute('aria-selected', 'false');
+                    }
+                    if (pane) {
+                        pane.classList.add('hidden');
+                    }
+                }
+            });
+
+            if (tab === 'overview') {
+                setTimeout(() => {
+                    if (sentimentChart) {
+                        sentimentChart.resize();
+                        sentimentChart.update();
+                    }
+                }, 60);
+            } else if (tab === 'benchmark') {
+                setTimeout(() => {
+                    if (roiGrowthChart) {
+                        roiGrowthChart.resize();
+                        roiGrowthChart.update();
+                    }
+                }, 60);
+            }
+        }
+
+        // 14. 行動端底部按鈕切換（保持拉長與雙列排版）
+        function switchMobileTab(tab) {
+            const main = document.getElementById('main-container');
+            const mapBtn = document.getElementById('tab-map-btn');
+            const reportBtn = document.getElementById('tab-report-btn');
+
+            const activeBtnClass = "flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center bg-blue-600 text-white transition-all shadow-md";
+            const inactiveBtnClass = "flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all";
+
+            if (tab === 'map') {
+                main.classList.add('mobile-view-map');
+                main.classList.remove('mobile-view-report');
+                if (mapBtn) mapBtn.className = activeBtnClass;
+                if (reportBtn) reportBtn.className = inactiveBtnClass;
+                setTimeout(() => {
+                    if (map) {
+                        map.invalidateSize();
+                    }
+                }, 100);
+            } else {
+                main.classList.remove('mobile-view-map');
+                main.classList.add('mobile-view-report');
+                if (reportBtn) reportBtn.className = activeBtnClass;
+                if (mapBtn) mapBtn.className = inactiveBtnClass;
+                // 進入報告 Tab 時平滑補間更新 Chart.js
+                setTimeout(() => {
+                    if (sentimentChart) {
+                        sentimentChart.resize();
+                        sentimentChart.update();
+                    }
+                    if (roiGrowthChart) {
+                        roiGrowthChart.resize();
+                        roiGrowthChart.update();
+                    }
+                }, 100);
+            }
+        }
+
+        // 頂部導覽列：平台分享互動引擎 (Web Share API 優先 ＋ 剪貼簿 Fallback 視覺反饋)
+        async function sharePlatform() {
+            const shareBtn = document.getElementById('share-platform-btn');
+            const origHtml = shareBtn ? shareBtn.innerHTML : '';
+
+            const shareData = {
+                title: '店聲 StoreVoice - AI 商家評論分析平台',
+                text: '快來體驗 StoreVoice AI 商家評論分析、新客行銷與同業對標平台！',
+                url: window.location.href
+            };
+
+            // ① 優先呼叫原生系統 Web Share API (手機 Safari / Chrome 原生面板)
+            if (navigator.share) {
+                try {
+                    await navigator.share(shareData);
+                    return;
+                } catch (err) {
+                    if (err.name === 'AbortError') return; // 使用者主動關閉分享面板
+                    console.log('Web Share 失敗，轉為剪貼簿複製：', err);
+                }
+            }
+
+            // ② 降級剪貼簿備用機制 (桌面瀏覽器一鍵複製與視覺回饋)
+            const copySuccess = () => {
+                if (shareBtn) {
+                    shareBtn.className = "text-xs bg-emerald-600 text-white px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center shadow-sm scale-105";
+                    shareBtn.innerHTML = `<i class="fa-solid fa-check mr-1.5 text-sm"></i><span>已複製分享連結！</span>`;
+                    setTimeout(() => {
+                        shareBtn.className = "text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center cursor-pointer shadow-sm active:scale-95";
+                        shareBtn.innerHTML = origHtml;
+                    }, 2200);
+                } else {
+                    alert('已成功複製 StoreVoice 平台分享連結！');
+                }
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(window.location.href).then(copySuccess).catch(() => {
+                    copySuccess();
+                });
+            } else {
+                const tempInput = document.createElement('input');
+                tempInput.value = window.location.href;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempInput);
+                copySuccess();
+            }
+        }
+
+        // 11. AI 一鍵生成新客行銷文案引擎 (MVP Phase 1)
+        function generateMarketingCopy(store, tone = 'ig') {
+            const cleanName = store.name.split(' ')[0];
+            const dish = store.signatureDish || (store.keywords[1]?.word.split(' (')[0] || store.keywords[0]?.word.split(' (')[0]);
+            const topKeywords = store.keywords.map(k => k.word.split(' (')[0]);
+            const s1 = store.pkStrengths[0] || '品質保證';
+            const s2 = store.pkStrengths[1] || '極致享受';
+            const s3 = store.pkStrengths[2] || '聚餐首選';
+            const aud = store.targetAudience || '愛吃美食的饕客';
+            const tagDish = dish.split(' ')[0].replace(/[^a-zA-Z0-9一-龥]/g, '');
+            const hashtags = [
+                `#${cleanName}`,
+                `#桃園美食`,
+                `#${store.category.split('/')[0]}推薦`,
+                `#${tagDish}`,
+                `#新客必吃`,
+                `#桃園探店`,
+                `#排隊美食`
+            ].join(' ');
+
+            if (tone === 'ig') {
+                return `🔥 【桃園美食探店】被在地人推爆的${store.category.split('/')[0]}名店！第一次來這樣點保證不踩雷 👇\n\n` +
+                    `如果你還沒吃過【${store.name}】，真的虧大了！Google 累積 ${store.reviewCount} 則好評、高達 ${store.stars} 顆星的超狂實力 ⭐️\n\n` +
+                    `✨ 新客初訪三大吸睛亮點：\n` +
+                    `🥇 靈魂招牌必點：【${dish}】（評論區破百則刷一排好評！）\n` +
+                    `⚡ 口碑特色一：${s1}\n` +
+                    `🥩 顧客狂推二：${s2}\n` +
+                    `💯 加分細節三：${s3}\n\n` +
+                    `💬 常客真實心聲：「${store.recentReviews[0]?.text || '吃過一次就直接列入回訪清單！'}」\n\n` +
+                    `🎯 推薦族群：${aud}\n` +
+                    `📍 門市座標：${store.address}\n` +
+                    `💡 貼心提醒：尖峰時段人潮較多，建議先看好招牌點餐！快 @ 身邊愛吃美食的朋友一起衝一波 🏃💨\n\n` +
+                    `${hashtags}`;
+            } else if (tone === 'promo') {
+                return `📢 【新客入坑指南】第一次吃【${store.name}】該怎麼點？手把手攻略來了！\n\n` +
+                    `還在猶豫今天吃什麼？桃園 ${store.category.split('/')[0]} 人氣霸主，${store.stars} 顆星超強口碑保障，新手首訪絕不踩雷！\n\n` +
+                    `👑 必吃攻略重點：\n` +
+                    `1️⃣ 必點鎮店之寶：【${dish}】\n` +
+                    `2️⃣ 網友一致公認：${s1}\n` +
+                    `3️⃣ 滿意度關鍵：${s2}\n\n` +
+                    `📌 內行點餐暗號：指名「${topKeywords.slice(0, 2).join('、')}」就對了！\n` +
+                    `📍 店址指引：${store.address}\n\n` +
+                    `趕緊點右下角收藏，本週約上飯友直接出發 🙌\n\n` +
+                    `${hashtags}`;
+            } else {
+                return `🥢 【老饕私藏筆記】藏在細節裡的真功夫：走訪【${cleanName}】\n\n` +
+                    `在競爭激烈的桃園餐飲市場，拿下 ${store.stars} 顆星、${store.reviewCount} 則高滿意度評價，靠的從來不是運氣，而是紮實的底蘊。\n\n` +
+                    `本次焦點推薦：\n` +
+                    `▫️ 核心靈魂：【${dish}】，香氣與層次掌握極佳\n` +
+                    `▫️ 實力展現：${s1}\n` +
+                    `▫️ 穩定水準：${s2}\n\n` +
+                    `如同常客評價：「${store.recentReviews[0]?.text || ''}」\n` +
+                    `一間值得專程前往、細細品味的${store.category.split('/')[0]}佳作。
+
+` +
+                    `📍 探訪座標：${store.address}\n\n` +
+                    `${hashtags}`;
+            }
+        }
+
+        function switchMarketingTone(tone) {
+            currentMarketingTone = tone;
+            ['ig', 'promo', 'foodie'].forEach(t => {
+                const btn = document.getElementById(`tone-btn-${t}`);
+                if (btn) {
+                    if (t === tone) {
+                        btn.className = "min-h-[44px] px-3.5 py-1.5 rounded-lg font-medium transition text-white bg-blue-600 shadow-sm cursor-pointer inline-flex items-center justify-center";
+                    } else {
+                        btn.className = "min-h-[44px] px-3.5 py-1.5 rounded-lg font-medium transition text-slate-600 hover:text-slate-900 cursor-pointer inline-flex items-center justify-center";
+                    }
+                }
+            });
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (store) renderMarketingCard(store);
+        }
+
+        function renderMarketingCard(store) {
+            const output = document.getElementById('marketing-copy-output');
+            const chips = document.getElementById('marketing-feature-chips');
+            const charCount = document.getElementById('copy-char-count');
+            if (!output || !store) return;
+
+            if (chips) {
+                const tags = [
+                    store.signatureDish ? `⭐ ${store.signatureDish.split(' & ')[0]}` : '',
+                    ...(store.pkStrengths || []).slice(0, 2),
+                    store.keywords?.[1]?.word.split(' (')[0] || store.keywords?.[0]?.word.split(' (')[0]
+                ].filter(Boolean);
+
+                chips.innerHTML = tags.map(t => `
+                    <span class="bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-full text-[11px] font-medium flex items-center">
+                        <span class="text-blue-600 mr-1 font-bold">#</span>${t}
+                    </span>
+                `).join('');
+            }
+
+            const copy = generateMarketingCopy(store, currentMarketingTone);
+            output.value = copy;
+            if (charCount) {
+                charCount.innerText = `${copy.length} 字元`;
+            }
+        }
+
+        function copyMarketingCopy() {
+            const output = document.getElementById('marketing-copy-output');
+            if (!output) return;
+            const textToCopy = output.value;
+
+            const updateButtonSuccess = () => {
+                const btn = document.getElementById('copy-marketing-btn');
+                const origHtml = btn.innerHTML;
+                btn.className = "min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white transition-all inline-flex items-center justify-center space-x-1.5 shadow-sm scale-105 cursor-pointer shrink-0";
+                btn.innerHTML = `<i class="fa-solid fa-check text-white text-sm"></i><span>已複製文案！</span>`;
+
+                setTimeout(() => {
+                    btn.className = "min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all inline-flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer shrink-0";
+                    btn.innerHTML = origHtml;
+                }, 2000);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(updateButtonSuccess).catch(() => {
+                    output.select();
+                    document.execCommand('copy');
+                    updateButtonSuccess();
+                });
+            } else {
+                output.select();
+                document.execCommand('copy');
+                updateButtonSuccess();
+            }
+        }
+
+        function regenerateMarketingCopy() {
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            const output = document.getElementById('marketing-copy-output');
+            if (output && store) {
+                output.classList.add('opacity-40');
+                setTimeout(() => {
+                    renderMarketingCard(store);
+                    output.classList.remove('opacity-40');
+                }, 180);
+            }
+        }
+
+        // 12. 顧客負評痛點與智慧公關回覆引擎 (MVP Phase 2 留存優化核心)
+        function generatePrReply(store, strategy = 'apology', painIndex = 0) {
+            const targetWeakness = store.pkWeaknesses?.[painIndex] || store.pkWeaknesses?.[0] || '用餐細節安排';
+            const lowestTheme = [...(store.themes || [])].sort((a, b) => parseFloat(a.score) - parseFloat(b.score))[0];
+            const themeName = lowestTheme ? lowestTheme.name.split(' (')[0] : '服務與現場體驗';
+
+            if (strategy === 'apology') {
+                return `您好，我是【${store.name}】的負責店長。\n\n` +
+                    `非常感謝您抽空在 Google 上留下這則寶貴的反饋。針對您提及「${targetWeakness}」的狀況，我們團隊深感抱歉，也完全理解這造成了您用餐體驗上的不適。\n\n` +
+                    `關於${themeName}的流程，我們已於今日營運會議進行深入檢討，並著手建立以下具體改善措施：\n` +
+                    `1. 強化尖峰時段的調度與現場引導，減少顧客久候與不適感。\n` +
+                    `2. 重新檢視現場動線與配置，確保每位顧客都能享有標準以上的舒心體驗。\n\n` +
+                    `您的寶貴指教是我們持續進步最重要的養分，誠摯希望未來能有機會再次為您服務，讓我們展現改善後的誠意！\n\n` +
+                    `【${store.name} 營運主管與全體團隊 敬上】`;
+            } else if (strategy === 'invitation') {
+                return `親愛的顧客您好，感謝您專程造訪【${store.name}】並給予我們真實反饋！\n\n` +
+                    `看到您對於「${targetWeakness}」感到不如預期，我們十分重視且遺憾，因為每位顧客的滿足感都是我們最核心的追求。\n\n` +
+                    `為了彌補這次未能讓您盡興的遺憾，誠摯邀請您下次蒞臨門市時，直接向現場服務人員或店長出示此則回覆，我們希望能親自為您安排更理想的座位體驗，並招待您一份主廚招牌私房小品表達我們最誠摯的歉意與心意。\n\n` +
+                    `我們已經針對現場細節積極調整，真誠期待能再次遇見您，讓我們為您帶來滿意的用餐回憶！\n\n` +
+                    `【${store.name} 顧客關係團隊 敬上】`;
+            } else { // 'clarification'
+                return `您好，非常感謝您蒞臨【${store.name}】並提供細緻的意見！\n\n` +
+                    `關於您提到的「${targetWeakness}」，我們非常理解在尖峰時段這確實容易讓客人感到不便。在此也向您溫和說明：為了維持餐點最高水準與品質，我們的製作與服務流程均遵循固定工序，但在現場人潮較多時，確實仍有許多能更體貼照顧每位客人的空間。\n\n` +
+                    `建議您若下次前來，可優先利用平日離峰時段或提前預約；若周邊停車/動線較壅塞，也可參考我們店家資訊所標註的鄰近便利配套。\n\n` +
+                    `感謝您的體諒與包容，我們一定會持續精進優化！\n\n` +
+                    `【${store.name} 店長敬上】`;
+            }
+        }
+
+        // 切換公關回覆策略
+        function switchPrStrategy(strategy) {
+            currentPrStrategy = strategy;
+            ['apology', 'invitation', 'clarification'].forEach(s => {
+                const btn = document.getElementById(`pr-strat-${s}`);
+                if (btn) {
+                    if (s === strategy) {
+                        btn.className = "min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow-sm transition cursor-pointer inline-flex items-center justify-center";
+                    } else {
+                        btn.className = "min-h-[44px] px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:text-slate-900 transition cursor-pointer inline-flex items-center justify-center";
+                    }
+                }
+            });
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (store) updatePrReplyText(store);
+        }
+
+        // 選擇特定客怨痛點
+        function selectPainPoint(index) {
+            selectedPainIndex = index;
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (store) {
+                renderPainPointsUi(store);
+                updatePrReplyText(store);
+            }
+        }
+
+        // 渲染痛點列表與對應負評內容
+        function renderPainPointsUi(store) {
+            const painList = document.getElementById('pain-points-list');
+            const targetBox = document.getElementById('target-complaint-box');
+            const riskText = document.getElementById('negative-risk-text');
+            const riskBadge = document.getElementById('negative-risk-badge');
+
+            // 更新整體客怨風險提示
+            const negRate = store.sentiment?.neg || 0;
+            if (riskText) {
+                if (negRate >= 10) {
+                    riskText.innerText = `顧客流失風險：高 (負評比 ${negRate}%)`;
+                    riskBadge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 shrink-0";
+                } else {
+                    riskText.innerText = `客怨控制良好 (負評比 ${negRate}%)`;
+                    riskBadge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-800 shrink-0";
+                }
+            }
+
+            // 渲染痛點選擇卡片 (具備 44px 觸控目標高度)
+            if (painList && store.pkWeaknesses) {
+                painList.innerHTML = store.pkWeaknesses.map((w, idx) => `
+                    <div onclick="selectPainPoint(${idx})" class="pain-card min-h-[44px] p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${idx === selectedPainIndex ? 'border-blue-600 bg-blue-50/50 shadow-sm text-blue-900' : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'}">
+                        <span class="text-xs font-bold text-slate-800 flex items-center truncate mr-2">
+                            <span class="w-2 h-2 rounded-full ${idx === selectedPainIndex ? 'bg-blue-600' : 'bg-slate-300'} mr-2 shrink-0"></span>
+                            <span class="truncate">${w}</span>
+                        </span>
+                        <span class="text-[10px] shrink-0 font-medium ${idx === selectedPainIndex ? 'text-blue-700 font-bold' : 'text-slate-400'}">
+                            ${idx === 0 ? '高頻客怨 #1' : '痛點爭議 #2'}
+                        </span>
+                    </div>
+                `).join('');
+            }
+
+            // 渲染對應的真實負評/爭議摘錄
+            if (targetBox) {
+                const reviews = store.recentReviews || [];
+                const representativeNeg = reviews.find(r => r.stars <= 3) || reviews[1] || reviews[0] || { stars: 3, date: '', text: '暫無此項目之評論記錄' };
+                targetBox.innerHTML = `
+                    <div class="flex items-center justify-between text-amber-500">
+                        <span class="text-xs">${'★'.repeat(representativeNeg.stars)}</span>
+                        <span class="text-[10px] text-slate-400 font-mono">${representativeNeg.date}</span>
+                    </div>
+                    <p class="text-slate-700 leading-relaxed font-medium">「${representativeNeg.text}」</p>
+                    <div class="pt-1.5 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
+                        <span>關聯痛點：<strong class="text-rose-600">${store.pkWeaknesses?.[selectedPainIndex] || store.pkWeaknesses?.[0]}</strong></span>
+                        <span class="text-rose-600 font-semibold">建議於 24 小時內回覆</span>
+                    </div>
+                `;
+            }
+        }
+
+        // 更新公關回覆文字區域
+        function updatePrReplyText(store) {
+            const prOutput = document.getElementById('pr-reply-output');
+            if (prOutput) {
+                prOutput.value = generatePrReply(store, currentPrStrategy, selectedPainIndex);
+            }
+        }
+
+        // 一鍵複製公關回覆
+        function copyPrReply() {
+            const prOutput = document.getElementById('pr-reply-output');
+            if (!prOutput) return;
+            const textToCopy = prOutput.value;
+
+            const updateButtonSuccess = () => {
+                const btn = document.getElementById('copy-pr-btn');
+                const origHtml = btn.innerHTML;
+                btn.className = "min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white transition-all inline-flex items-center justify-center space-x-1.5 shadow-sm scale-105 cursor-pointer shrink-0";
+                btn.innerHTML = `<i class="fa-solid fa-check text-slate-950 text-sm"></i><span>已複製回覆！</span>`;
+
+                setTimeout(() => {
+                    btn.className = "min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all inline-flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer shrink-0";
+                    btn.innerHTML = origHtml;
+                }, 2000);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(updateButtonSuccess).catch(() => {
+                    prOutput.select();
+                    document.execCommand('copy');
+                    updateButtonSuccess();
+                });
+            } else {
+                prOutput.select();
+                document.execCommand('copy');
+                updateButtonSuccess();
+            }
+        }
+
+        // 重新生成公關回覆
+        function regeneratePrReply() {
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            const prOutput = document.getElementById('pr-reply-output');
+            if (prOutput && store) {
+                prOutput.classList.add('opacity-40');
+                setTimeout(() => {
+                    updatePrReplyText(store);
+                    prOutput.classList.remove('opacity-40');
+                }, 180);
+            }
+        }
+
+        // ==========================================
+        // 13. Phase 3：商圈同業 PK 對決與 ROI 成長驗證核心引擎
+        // ==========================================
+
+        // 渲染同業對手下拉選單
+        function renderCompetitorSelector(store) {
+            const selectEl = document.getElementById('competitor-select');
+            if (!selectEl || !store.competitors) return;
+
+            selectEl.innerHTML = store.competitors.map((comp, idx) => `
+                <option value="${idx}" ${idx === currentCompetitorIndex ? 'selected' : ''}>
+                    ${comp.name.split(' (')[0]} (★ ${comp.stars})
+                </option>
+            `).join('');
+        }
+
+        // 切換同業對手
+        function onCompetitorSelectChange(val) {
+            currentCompetitorIndex = parseInt(val, 10) || 0;
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (store) renderCompetitorPk(store, currentCompetitorIndex);
+        }
+
+        // 渲染商圈同業 PK 對比擂台 (Google 評分差值、評論總聲量、優勢、痛點)
+        function renderCompetitorPk(store, compIndex = currentCompetitorIndex) {
+            const competitors = store.competitors || [];
+            const competitor = competitors[compIndex] || competitors[0];
+            if (!competitor) return;
+
+            // 本店資料填入
+            const curName = document.getElementById('pk-current-name');
+            const curStars = document.getElementById('pk-current-stars');
+            const curReviews = document.getElementById('pk-current-reviews');
+            const curAdv = document.getElementById('pk-current-adv');
+            const curDisadv = document.getElementById('pk-current-disadv');
+
+            if (curName) curName.innerText = store.name.split(' (')[0];
+            if (curStars) curStars.innerHTML = `<i class="fa-solid fa-star mr-1 text-[11px]"></i>${store.stars}`;
+            if (curReviews) curReviews.innerText = `${store.reviewCount} 則評論`;
+            if (curAdv) curAdv.innerText = (store.pkStrengths || []).slice(0, 2).join('、');
+            if (curDisadv) curDisadv.innerText = (store.pkWeaknesses || []).join('、');
+
+            // 競品資料填入
+            const compName = document.getElementById('pk-competitor-name');
+            const compStars = document.getElementById('pk-competitor-stars');
+            const compReviews = document.getElementById('pk-competitor-reviews');
+            const compAdv = document.getElementById('pk-competitor-adv');
+            const compDisadv = document.getElementById('pk-competitor-disadv');
+
+            if (compName) compName.innerText = competitor.name.split(' (')[0];
+            if (compStars) compStars.innerHTML = `<i class="fa-solid fa-star mr-1 text-[11px]"></i>${competitor.stars}`;
+            if (compReviews) compReviews.innerText = `${competitor.reviews} 則評論`;
+            if (compAdv) compAdv.innerText = competitor.adv;
+            if (compDisadv) compDisadv.innerText = competitor.disadv;
+
+            // 差值徽章更新
+            const scoreBadge = document.getElementById('pk-score-diff-badge');
+            const reviewBadge = document.getElementById('pk-review-diff-badge');
+
+            if (scoreBadge) {
+                const diffVal = parseFloat(competitor.scoreDiff);
+                if (diffVal >= 0) {
+                    scoreBadge.className = "px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200";
+                    scoreBadge.innerText = `評分領先 ${competitor.scoreDiff} ★`;
+                } else {
+                    scoreBadge.className = "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200";
+                    scoreBadge.innerText = `評分對標 ${competitor.scoreDiff} ★`;
+                }
+            }
+
+            if (reviewBadge) {
+                const isPositive = !competitor.reviewDiff.startsWith('-');
+                reviewBadge.className = isPositive
+                    ? "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-50 text-slate-700 border border-slate-200"
+                    : "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200";
+                reviewBadge.innerText = isPositive
+                    ? `聲量高出 ${competitor.reviewDiff} 則`
+                    : `聲量差距 ${competitor.reviewDiff} 則`;
+            }
+        }
+
+        // 渲染營運成長 ROI 驗證儀表板指標與圖表
+        function renderRoiSection(store) {
+            const roi = store.roiGrowth;
+            if (!roi) return;
+
+            const growthRateEl = document.getElementById('roi-growth-rate');
+            const weeklyLiftEl = document.getElementById('roi-weekly-lift');
+            const revenueLiftEl = document.getElementById('roi-revenue-lift');
+            const insightTextEl = document.getElementById('roi-insight-text');
+
+            if (growthRateEl) growthRateEl.innerText = roi.growthRate;
+            if (weeklyLiftEl) weeklyLiftEl.innerText = roi.weeklyLift;
+            if (revenueLiftEl) revenueLiftEl.innerText = roi.estMonthlyRevenue;
+            if (insightTextEl) {
+                insightTextEl.innerHTML = `<i class="fa-solid fa-lightbulb text-amber-400 mr-1.5 shrink-0"></i><span>${roi.insights}</span>`;
+            }
+
+            updateRoiChart(roi);
+        }
+
+        // Chart.js 繪製與流暢更新 ROI 成長雙折線圖 (Baseline 導入前 vs StoreVoice 導入後)
+        function updateRoiChart(roi) {
+            const canvas = document.getElementById('roiGrowthChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            const datasets = [
+                {
+                    label: '導入前 (Baseline 基準客流)',
+                    data: roi.before,
+                    borderColor: '#94a3b8',
+                    borderDash: [5, 5],
+                    borderWidth: 2,
+                    backgroundColor: 'transparent',
+                    pointBackgroundColor: '#94a3b8',
+                    pointBorderColor: '#64748b',
+                    pointRadius: 3.5,
+                    pointHoverRadius: 5,
+                    tension: 0.35,
+                    fill: false
+                },
+                {
+                    label: '導入 StoreVoice 後 (優化成效)',
+                    data: roi.after,
+                    borderColor: '#2563eb',
+                    borderWidth: 2.5,
+                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                    pointBackgroundColor: '#2563eb',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 1.5,
+                    pointRadius: 4.5,
+                    pointHoverRadius: 6.5,
+                    tension: 0.35,
+                    fill: true
+                }
+            ];
+
+            if (!roiGrowthChart) {
+                roiGrowthChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: roi.labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        animation: {
+                            duration: 550,
+                            easing: 'easeOutQuart'
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                align: 'end',
+                                labels: {
+                                    boxWidth: 12,
+                                    boxHeight: 8,
+                                    color: '#475569',
+                                    font: { size: 10, weight: '500' },
+                                    padding: 8
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#cbd5e1',
+                                borderColor: '#cbd5e1',
+                                borderWidth: 1,
+                                padding: 8,
+                                callbacks: {
+                                    label: function (context) {
+                                        return ' ' + context.dataset.label + ': ' + context.parsed.y.toLocaleString() + ' 人/週';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(0, 0, 0, 0.04)' },
+                                ticks: { color: '#64748b', font: { size: 10 } }
+                            },
+                            y: {
+                                grid: { color: 'rgba(0, 0, 0, 0.04)' },
+                                ticks: {
+                                    color: '#64748b',
+                                    font: { size: 10 },
+                                    callback: function (val) {
+                                        return val >= 1000 ? (val / 1000).toFixed(1) + 'k' : val;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                roiGrowthChart.data.labels = roi.labels;
+                roiGrowthChart.data.datasets = datasets;
+                roiGrowthChart.update();
+            }
+        }
+
+        function updateDashboard(store) {
+            const titleEl = document.getElementById('report-title');
+            if (titleEl) titleEl.innerText = store.name;
+
+            const catEl = document.getElementById('report-category');
+            if (catEl) catEl.innerText = store.category;
+
+            const addrEl = document.getElementById('report-address');
+            if (addrEl) addrEl.innerHTML = `<i class="fa-solid fa-location-dot text-rose-500 mr-1.5"></i> ${store.address}`;
+
+            const starEl = document.getElementById('report-stars');
+            if (starEl) starEl.innerHTML = `<i class="fa-solid fa-star mr-1 text-sm"></i>${store.stars}`;
+
+            const revEl = document.getElementById('report-reviews');
+            if (revEl) revEl.innerText = `(${store.reviewCount} 則 Google 評價)`;
+
+            // 渲染 Phase 1 行銷文案卡片
+            renderMarketingCard(store);
+
+            // 渲染 Phase 2 顧客負評痛點與智慧公關回覆模組
+            renderPainPointsUi(store);
+            updatePrReplyText(store);
+
+            // 渲染 Phase 3 商圈同業 PK 對決與 ROI 成長驗證
+            renderCompetitorSelector(store);
+            renderCompetitorPk(store, currentCompetitorIndex);
+            renderRoiSection(store);
+
+            // 圓餅圖平滑更新
+            updateChart(store.sentiment || { pos: 70, neu: 20, neg: 10 });
+
+            // 關鍵字與招牌特色更新
+            const kwContainer = document.getElementById('keywords-container');
+            if (kwContainer && store.keywords) {
+                kwContainer.innerHTML = store.keywords.map((k, idx) => `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-medium text-slate-700 flex items-center">
+                                ${idx === 0 ? '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5">🔥 人氣焦點</span>' : (idx === 1 ? '<span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.5 rounded mr-1.5">⭐ 招牌必點</span>' : '<span class="bg-slate-100 text-slate-600 text-[10px] font-medium px-1.5 py-0.5 rounded mr-1.5">特色優勢</span>')}
+                                ${k.word}
+                            </span>
+                            <span class="text-slate-400 font-mono text-[11px]">${k.count} 提及</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: ${Math.min(k.count, 100)}%"></div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // 主題維度表格更新
+            const themeBody = document.getElementById('theme-table-body');
+            if (themeBody && store.themes) {
+                themeBody.innerHTML = store.themes.map(t => `
+                    <tr class="hover:bg-slate-50/80 transition-colors">
+                        <td class="py-2.5 pl-3 font-semibold text-slate-800">${t.name}</td>
+                        <td class="py-2.5 font-mono text-slate-500">${t.count}</td>
+                        <td class="py-2.5 text-emerald-600 font-semibold">${t.pos}</td>
+                        <td class="py-2.5 text-slate-400">${t.neu}</td>
+                        <td class="py-2.5 text-rose-500 font-semibold">${t.neg}</td>
+                        <td class="py-2.5 pr-3 text-right font-bold ${parseFloat(t.score) >= 4.5 ? 'text-emerald-600' : 'text-blue-600'}">
+                            ${t.score}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // 最新評論更新
+            const reviewsContainer = document.getElementById('reviews-container');
+            if (reviewsContainer && store.recentReviews) {
+                reviewsContainer.innerHTML = store.recentReviews.map(r => `
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+                        <div class="flex justify-between items-center text-amber-500">
+                            <span class="text-xs tracking-wider">${'★'.repeat(r.stars)}</span>
+                            <span class="text-[10px] text-slate-400 font-mono">${r.date}</span>
+                        </div>
+                        <p class="text-slate-600 leading-relaxed text-xs">${r.text}</p>
+                    </div>
+                `).join('');
+            }
+
+            // AI 改善建議更新
+            const adviceList = document.getElementById('ai-advice-list');
+            if (adviceList && store.aiAdvice) {
+                adviceList.innerHTML = store.aiAdvice.map((advice, i) => `
+                    <li class="flex items-start space-x-2">
+                        <span class="bg-blue-600 text-amber-300 font-bold rounded-full w-4 h-4 flex items-center justify-center text-[10px] shrink-0 mt-0.5 shadow-sm">${i + 1}</span>
+                        <span class="leading-relaxed">${advice}</span>
+                    </li>
+                `).join('');
+            }
+            // 確保當前作用 Tab 之圖表尺寸精確
+            if (currentDashboardTab === 'overview' && sentimentChart) {
+                setTimeout(() => sentimentChart.resize(), 50);
+            } else if (currentDashboardTab === 'benchmark' && roiGrowthChart) {
+                setTimeout(() => roiGrowthChart.resize(), 50);
+            }
+        
+        }
+
+        // 15. Chart.js 情感圖表繪製 (平滑補間更新，消滅白屏破壞)
+        function updateChart(sentiment) {
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+
+            if (!sentimentChart) {
+                sentimentChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['正面 (Positive)', '中立 (Neutral)', '負面 (Negative)'],
+                        datasets: [{
+                            data: [sentiment.pos, sentiment.neu, sentiment.neg],
+                            backgroundColor: ['#10b981', '#94a3b8', '#f43f5e'],
+                            borderWidth: 2,
+                            borderColor: '#ffffff',
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: {
+                            duration: 500,
+                            easing: 'easeOutQuart'
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { boxWidth: 10, font: { size: 11 }, padding: 12 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return ` ${context.label}: ${context.raw}%`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '72%'
+                    }
+                });
+            } else {
+                sentimentChart.data.datasets[0].data = [sentiment.pos, sentiment.neu, sentiment.neg];
+                sentimentChart.update();
+            }
+        }
+
+        // 16. PDF / HTML 匯出 Modal 互動控制
+        function openExportModal() {
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (!store) return;
+            document.getElementById('modal-store-name').innerText = store.name;
+            document.getElementById('modal-store-category').innerText = store.category;
+            document.getElementById('modal-store-addr').innerText = store.address;
+            document.getElementById('modal-store-stars').innerText = `★ ${store.stars}`;
+            document.getElementById('modal-store-reviews').innerText = `(${store.reviewCount} 則評論)`;
+
+            document.getElementById('modal-progress-container').classList.add('hidden');
+            document.getElementById('modal-success-alert').classList.add('hidden');
+            const downloadBtn = document.getElementById('modal-download-btn');
+            downloadBtn.innerHTML = `<i class="fa-solid fa-desktop text-blue-200"></i><i class="fa-solid fa-file-code"></i><span>下載 .html 至桌面</span>`;
+            downloadBtn.disabled = false;
+
+            const modal = document.getElementById('export-modal');
+            const panel = document.getElementById('export-modal-panel');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            panel.classList.remove('scale-95');
+            panel.classList.add('scale-100');
+        }
+
+        function closeExportModal() {
+            const modal = document.getElementById('export-modal');
+            const panel = document.getElementById('export-modal-panel');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            panel.classList.remove('scale-100');
+            panel.classList.add('scale-95');
+        }
+
+        function onBackdropClick(event) {
+            if (event.target.id === 'export-modal') {
+                closeExportModal();
+            }
+        }
+
+        function getSafeFilename(storeName, ext = 'html') {
+            const cleanName = storeName.replace(/[\/\\:*?"<>|]/g, '_');
+            return `StoreVoice_${cleanName}_AI分析簡報.${ext}`;
+        }
+
+        function triggerBrowserBlobDownload(contentOrBlob, filename, mimeType) {
+            const blob = contentOrBlob instanceof Blob ? contentOrBlob : new Blob([contentOrBlob], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 1000);
+        }
+
+        async function saveFileDirectly({ contentOrBlob, filename, mimeType, ext = 'html' }) {
+            const blob = contentOrBlob instanceof Blob ? contentOrBlob : new Blob([contentOrBlob], { type: mimeType });
+
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: filename,
+                        startIn: 'desktop',
+                        types: ext === 'html' ? [
+                            {
+                                description: 'HTML 網頁洞察報告 (*.html)',
+                                accept: { 'text/html': ['.html'] }
+                            }
+                        ] : [
+                            {
+                                description: 'PDF 文件簡報 (*.pdf)',
+                                accept: { 'application/pdf': ['.pdf'] }
+                            }
+                        ]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    return { success: true, method: 'picker', location: '桌面 (Desktop)' };
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        return { success: false, aborted: true };
+                    }
+                    console.warn('showSaveFilePicker 降級為常規下載：', err);
+                }
+            }
+
+            triggerBrowserBlobDownload(blob, filename, mimeType);
+            return { success: true, method: 'blob', location: '桌面 / 下載資料夾' };
+        }
+
+        function buildPrintableReportHtml(store) {
+            const adviceList = (store.aiAdvice || []).map((adv, idx) => `
+                <div style="background:#f8fafc; border-left:4px solid #2563eb; padding:12px 16px; border-radius:6px; margin-bottom:10px; font-size:13px; color:#1e293b; line-height:1.6;">
+                    <strong style="color:#2563eb;">#0${idx + 1}</strong> ${adv}
+                </div>
+            `).join('');
+
+            const keywordsBadges = (store.keywords || []).map(k => `
+                <span style="display:inline-block; background:#eff6ff; color:#1e40af; padding:5px 12px; border-radius:999px; font-size:12px; margin:3px 6px 3px 0; font-weight:600; border:1px solid #bfdbfe;">
+                    ${k.word} (${k.count})
+                </span>
+            `).join('');
+
+            const posPct = store.sentiment?.pos || 70;
+            const neuPct = store.sentiment?.neu || 20;
+            const negPct = store.sentiment?.neg || 10;
+            const comp = (store.competitors && store.competitors[0]) || { name: '商圈競品', stars: '4.3', scoreDiff: '+0.3', reviewDiff: '+1,962', adv: '品項多元', disadv: '排煙待加強' };
+            const roi = store.roiGrowth || { growthRate: '+32.0%', weeklyLift: '+390 人', estMonthlyRevenue: '+NT$ 35.1 萬', insights: '新客與留存雙輪驅動。' };
+
+            return `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoreVoice 店聲 AI 評論洞察報告 - ${store.name}</title>
+</head>
+<body style="margin:0; background:#f1f5f9; padding:28px 16px; font-family:'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;">
+    <div style="max-width:920px; margin:0 auto; padding:32px; background:#ffffff; border-radius:16px; box-shadow:0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.04); color:#0f172a;">
+        <div style="border-bottom:2px solid #e2e8f0; padding-bottom:18px; margin-bottom:24px; display:flex; justify-content:space-between; align-items:flex-end;">
+            <div>
+                <div style="font-size:11px; font-weight:700; color:#2563eb; letter-spacing:1.5px; text-transform:uppercase;">StoreVoice · 店聲 AI 評論智能洞察報告 (.html)</div>
+                <h1 style="font-size:26px; font-weight:800; margin:8px 0 0 0; color:#0f172a; letter-spacing:-0.5px;">${store.name}</h1>
+                <p style="font-size:13px; color:#64748b; margin:6px 0 0 0;">類別：<span style="color:#2563eb; font-weight:600;">${store.category}</span> ｜ 累計評價：${store.reviewCount} 則 ｜ Google 評分：★ ${store.stars}</p>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:11px; color:#94a3b8;">匯出時間</div>
+                <div style="font-size:12px; font-weight:600; color:#334155;">${new Date().toLocaleString('zh-TW')}</div>
+                <div style="font-size:11px; color:#10b981; font-weight:600; margin-top:3px;">● 檔案位置：電腦桌面 (Desktop)</div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:16px; margin-bottom:24px;">
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:16px;">
+                <div style="font-size:12px; color:#1e40af; font-weight:600;">大眾推薦率</div>
+                <div style="font-size:28px; font-weight:800; color:#1d4ed8; margin:6px 0;">${posPct}%</div>
+                <div style="font-size:11px; color:#3b82f6;">正面口碑評比極佳</div>
+            </div>
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px;">
+                <div style="font-size:12px; color:#166534; font-weight:600;">五大指標綜合得分</div>
+                <div style="font-size:28px; font-weight:800; color:#15803d; margin:6px 0;">
+                    ${((store.radarScores ? store.radarScores.reduce((a, b) => a + b, 0) / 5 : 4.5)).toFixed(1)} <span style="font-size:14px; font-weight:500;">/ 5.0</span>
+                </div>
+                <div style="font-size:11px; color:#22c55e;">口味美味度表現最高</div>
+            </div>
+            <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:12px; padding:16px;">
+                <div style="font-size:12px; color:#991b1b; font-weight:600;">潛在客怨風險比例</div>
+                <div style="font-size:28px; font-weight:800; color:#b91c1c; margin:6px 0;">${negPct}%</div>
+                <div style="font-size:11px; color:#ef4444;">主要集中於排隊與尖峰體驗</div>
+            </div>
+        </div>
+
+        <!-- Phase 3: 商圈同業 PK 對標與 ROI 成長驗證摘要 -->
+        <div style="margin-bottom:24px; padding:18px; background:#faf5ff; border-radius:12px; border:1px solid #e9d5ff;">
+            <div style="font-size:13px; font-weight:700; color:#581c87; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                <span>⚔️ 商圈同業 PK 對標與營運 ROI 成長實證 (Phase 3 核心)</span>
+                <span style="font-size:11px; background:#9333ea; color:#fff; font-weight:bold; padding:3px 10px; border-radius:999px;">來客成長率 ${roi.growthRate}</span>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                <div style="background:#fff; border:1px solid #d8b4fe; border-radius:8px; padding:12px;">
+                    <div style="font-size:11px; font-weight:700; color:#6b21a8;">同業競品對標：${comp.name}</div>
+                    <div style="font-size:13px; font-weight:bold; color:#1e293b; margin-top:3px;">評分優勢：<span style="color:#16a34a;">${comp.scoreDiff} ★</span> ｜ 聲量優勢：${comp.reviewDiff} 則</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:4px;">我方核心優勢：${(store.pkStrengths || []).slice(0, 2).join('、')}</div>
+                </div>
+                <div style="background:#fff; border:1px solid #d8b4fe; border-radius:8px; padding:12px;">
+                    <div style="font-size:11px; font-weight:700; color:#6b21a8;">營運 ROI 成果：每週新增 ${roi.weeklyLift}</div>
+                    <div style="font-size:13px; font-weight:bold; color:#b45309; margin-top:3px;">預估單月營收增益：${roi.estMonthlyRevenue}</div>
+                    <div style="font-size:11px; color:#64748b; margin-top:4px;">4 週來客數從 ${roi.before[0]} 人/週 攀升至 ${roi.after[roi.after.length - 1]} 人/週</div>
+                </div>
+            </div>
+            <div style="font-size:11px; color:#7e22ce; line-height:1.5;">
+                💡 策略驗證飛輪：${roi.insights}
+            </div>
+        </div>
+
+        <div style="margin-bottom:24px; padding:18px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+            <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px;">評論情緒結構分佈佔比</div>
+            <div style="display:flex; height:24px; border-radius:8px; overflow:hidden; font-size:11px; font-weight:bold; color:#fff; text-align:center; line-height:24px;">
+                <div style="width:${posPct}%; background:#10b981;">正面 ${posPct}%</div>
+                <div style="width:${neuPct}%; background:#94a3b8;">中立 ${neuPct}%</div>
+                <div style="width:${negPct}%; background:#f43f5e;">負面 ${negPct}%</div>
+            </div>
+        </div>
+
+        <div style="margin-bottom:24px;">
+            <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:12px;">五大維度量化評分明細</div>
+            <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; text-align:center;">
+                ${['環境氣氛', '服務態度', '美味程度', '性價 CP 值', '交通便利'].map((name, i) => `
+                    <div style="background:#f1f5f9; padding:12px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <div style="font-size:11px; color:#64748b;">${name}</div>
+                        <div style="font-size:18px; font-weight:800; color:#1e293b; margin-top:4px;">${store.radarScores ? store.radarScores[i] : '4.5'}★</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <div style="margin-bottom:24px;">
+            <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px;">高頻評價語意關鍵字標籤</div>
+            <div style="padding:4px 0;">${keywordsBadges}</div>
+        </div>
+
+        <div style="margin-bottom:24px;">
+            <div style="font-size:14px; font-weight:700; color:#1e293b; margin-bottom:12px;">
+                🎯 AI 專屬經營改善行動方案 (LLM 推薦對策)
+            </div>
+            <div>${adviceList}</div>
+        </div>
+
+        <div style="border-top:1px dashed #cbd5e1; padding-top:14px; font-size:11px; color:#94a3b8; display:flex; justify-content:space-between;">
+            <span>本報告由 StoreVoice 店聲平台自動化萃取生成 ｜ 格式：.html 離線互動報告</span>
+            <span>儲存目標目錄：電腦「桌面 (Desktop)」</span>
+        </div>
+    </div>
+</body>
+</html>`;
+        }
+
+        // 17. 核心匯出邏輯：支援 .html 與 .pdf，優先儲存至桌面 (Desktop)
+        async function executeExportToDesktop(format = 'html') {
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (!store) return;
+            const filename = getSafeFilename(store.name, format);
+
+            const progressContainer = document.getElementById('modal-progress-container');
+            const progressBar = document.getElementById('modal-progress-bar');
+            const progressText = document.getElementById('modal-progress-text');
+            const progressPercent = document.getElementById('modal-progress-percent');
+            const successAlert = document.getElementById('modal-success-alert');
+            const downloadBtn = document.getElementById('modal-download-btn');
+            const badge = document.getElementById('downloaded-filename-badge');
+
+            progressContainer.classList.remove('hidden');
+            successAlert.classList.add('hidden');
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i><span>正在匯出至桌面...</span>`;
+
+            progressBar.style.width = '35%';
+            progressPercent.innerText = '35%';
+            progressText.innerText = `正在彙整數據並封裝 .${format} 檔案...`;
+
+            if (format === 'html') {
+                const htmlContent = buildPrintableReportHtml(store);
+
+                const savePromise = saveFileDirectly({
+                    contentOrBlob: htmlContent,
+                    filename: filename,
+                    mimeType: 'text/html;charset=utf-8',
+                    ext: 'html'
+                });
+
+                progressBar.style.width = '70%';
+                progressPercent.innerText = '70%';
+                progressText.innerText = '正在寫入檔案至電腦桌面...';
+
+                try {
+                    const result = await savePromise;
+                    if (result && !result.aborted) {
+                        finishExportUi(filename, format);
+                    } else {
+                        progressContainer.classList.add('hidden');
+                        downloadBtn.disabled = false;
+                        downloadBtn.innerHTML = `<i class="fa-solid fa-desktop text-blue-200"></i><i class="fa-solid fa-file-code"></i><span>下載 .html 至桌面</span>`;
+                    }
+                } catch (e) {
+                    finishExportUi(filename, format);
+                }
+            } else if (format === 'pdf') {
+                progressBar.style.width = '50%';
+                progressPercent.innerText = '50%';
+                progressText.innerText = '正在生成向量 PDF 並存入桌面...';
+
+                if (window.html2pdf) {
+                    const reportWrapper = document.createElement('div');
+                    reportWrapper.style.position = 'fixed';
+                    reportWrapper.style.left = '-9999px';
+                    reportWrapper.style.top = '0';
+                    reportWrapper.style.width = '800px';
+                    reportWrapper.innerHTML = buildPrintableReportHtml(store);
+                    document.body.appendChild(reportWrapper);
+
+                    const opt = {
+                        margin: 8,
+                        filename: filename,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true, logging: false },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+
+                    try {
+                        const pdfBlob = await html2pdf().set(opt).from(reportWrapper).output('blob');
+                        document.body.removeChild(reportWrapper);
+
+                        const result = await saveFileDirectly({
+                            contentOrBlob: pdfBlob,
+                            filename: filename,
+                            mimeType: 'application/pdf',
+                            ext: 'pdf'
+                        });
+
+                        if (result && !result.aborted) {
+                            finishExportUi(filename, format);
+                        } else {
+                            progressContainer.classList.add('hidden');
+                            downloadBtn.disabled = false;
+                            downloadBtn.innerHTML = `<i class="fa-solid fa-desktop text-blue-200"></i><i class="fa-solid fa-file-code"></i><span>下載 .html 至桌面</span>`;
+                        }
+                    } catch (err) {
+                        console.warn('PDF 轉譯失敗，降級為 HTML 報告下載：', err);
+                        document.body.removeChild(reportWrapper);
+                        executeExportToDesktop('html');
+                    }
+                } else {
+                    executeExportToDesktop('html');
+                }
+            }
+        }
+
+        function finishExportUi(filename, format) {
+            const progressContainer = document.getElementById('modal-progress-container');
+            const progressBar = document.getElementById('modal-progress-bar');
+            const progressText = document.getElementById('modal-progress-text');
+            const progressPercent = document.getElementById('modal-progress-percent');
+            const successAlert = document.getElementById('modal-success-alert');
+            const downloadBtn = document.getElementById('modal-download-btn');
+            const badge = document.getElementById('downloaded-filename-badge');
+
+            progressBar.style.width = '100%';
+            progressPercent.innerText = '100%';
+            progressText.innerText = `.${format} 檔案已成功存入電腦桌面！`;
+
+            setTimeout(() => {
+                progressContainer.classList.add('hidden');
+                if (badge) badge.innerText = filename;
+                successAlert.classList.remove('hidden');
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = `<i class="fa-solid fa-check mr-1 text-emerald-300"></i><span>再次下載 .html 至桌面</span>`;
+            }, 300);
+        }
+
+        function downloadHtmlReport() {
+            executeExportToDesktop('html');
+        }
+
+        async function downloadJsonData() {
+            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (!store) return;
+            const filename = `StoreVoice_${store.name.replace(/[\/\\:*?"<>|]/g, '_')}_raw_data.json`;
+            const exportPayload = {
+                exportMetadata: {
+                    platform: "StoreVoice 店聲",
+                    exportTimestamp: new Date().toISOString(),
+                    defaultSaveDirectory: "Desktop (桌面)",
+                    extension: ".json"
+                },
+                storeData: store
+            };
+            await saveFileDirectly({
+                contentOrBlob: JSON.stringify(exportPayload, null, 2),
+                filename: filename,
+                mimeType: 'application/json;charset=utf-8',
+                ext: 'json'
+            });
+        }
+
+        function copyAiAdvice() {
+            const store = storesData.find(s => s.id === activeStoreId);
+            if (!store) return;
+            const textToCopy = `【${store.name}】AI 經營改善行動方案：\n` + store.aiAdvice.map((a, i) => `${i + 1}. ${a}`).join('\n');
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const btn = document.getElementById('copy-advice-btn');
+                const origHtml = btn.innerHTML;
+                btn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i><span class="text-emerald-300">已複製</span>`;
+                setTimeout(() => {
+                    btn.innerHTML = origHtml;
+                }, 2000);
+            });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeExportModal();
+            }
+        });
+    </script>
+</body>
+
+</html>
