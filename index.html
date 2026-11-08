@@ -201,6 +201,11 @@
                 <span id="data-source-text">連線中...</span>
             </span>
 
+            <button onclick="configureGeminiApiKey()" title="設定 Google Gemini API 金鑰"
+                class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center cursor-pointer shadow-sm active:scale-95 space-x-1.5">
+                <i class="fa-solid fa-key text-indigo-500"></i>
+                <span class="hidden md:inline text-[11px]">Gemini Key</span>
+            </button>
             <button id="share-platform-btn" onclick="sharePlatform()"
                 class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center cursor-pointer shadow-sm active:scale-95">
                 <i class="fa-solid fa-share-nodes text-blue-600 mr-1.5 text-sm"></i>
@@ -373,7 +378,13 @@
                                 評價)</span>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2 shrink-0">
+                    <div class="flex items-center space-x-2 shrink-0 flex-wrap gap-y-2 justify-end">
+                        <!-- Google Gemini AI 深度分析按鈕 -->
+                        <button id="gemini-analyze-btn" onclick="triggerGeminiAnalysis()" title="使用 Google Gemini 即時生成深度評論與營運報告"
+                            class="min-h-[44px] text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-3.5 py-2 rounded-xl shadow-sm transition inline-flex items-center space-x-1.5 cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                            <span id="gemini-btn-text">AI 深度分析</span>
+                        </button>
                         <button id="delete-store-btn" onclick="openDeleteStoreModal()" title="刪除此店家並記錄原因"
                             class="hidden min-h-[44px] text-xs bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 px-3.5 py-2.5 rounded-xl transition font-medium shadow-sm items-center space-x-1.5 cursor-pointer active:scale-95">
                             <i class="fa-solid fa-trash-can text-rose-500"></i>
@@ -1107,6 +1118,14 @@
                             <label class="block text-[10px] font-semibold text-slate-600 mb-1">經度 (Lng)</label>
                             <input id="new-store-lng" type="number" step="0.0001" placeholder="留空由系統自動對應"
                                 class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-xs">
+                        </div>
+                        <div class="col-span-2 pt-1.5 border-t border-slate-200/70 mt-0.5">
+                            <label class="block text-[10px] font-semibold text-slate-600 mb-1 flex items-center justify-between">
+                                <span>Google Maps Geocoding API Key (選填)</span>
+                                <span class="text-[9px] text-slate-400">留空將使用商圈字典自動對應</span>
+                            </label>
+                            <input id="new-store-apikey" type="password" placeholder="AIzaSy... (若程式碼中已預設金鑰可留空)"
+                                class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-xs font-mono">
                         </div>
                     </div>
                 </div>
@@ -3062,30 +3081,238 @@
         }
 
         // 表單送出：寫入 Cloud Firestore
+        // =========================================================================
+        // 🤖 Google Gemini API 金鑰預留常數與配置
+        // 請在此填入您的 Google Gemini API Key，或於介面點擊「Gemini Key」按鈕設定
+        // =========================================================================
+        const GEMINI_API_KEY = ""; // 例如: "AIzaSy..."
+
+        // 快速設定 / 更新 Gemini API Key
+        function configureGeminiApiKey() {
+            const currentKey = localStorage.getItem('STOREVOICE_GEMINI_KEY') || GEMINI_API_KEY || '';
+            const newKey = prompt("請輸入您的 Google Gemini API Key（金鑰將安全儲存於您本地瀏覽器）：", currentKey);
+            if (newKey !== null) {
+                if (newKey.trim()) {
+                    localStorage.setItem('STOREVOICE_GEMINI_KEY', newKey.trim());
+                    alert("✅ Google Gemini API 金鑰已成功儲存！");
+                } else {
+                    localStorage.removeItem('STOREVOICE_GEMINI_KEY');
+                    alert("ℹ️ 已清除本地儲存的 Gemini API 金鑰。");
+                }
+            }
+        }
+
         /**
-         * 智慧地址地理編碼引擎 (Mock Geocoding Engine)
-         * 根據地址關鍵字（行政區/知名商圈）自動對應精確中心坐標，並加入微幅防重疊偏移
-         * 
-         * 【API 擴充註解】：
-         * 未來若需串接 Google Maps Geocoding API 或 Nominatim 取得精確門牌號碼座標，切入點如下：
-         * ```javascript
-         * async function geocodeWithGoogleApi(address) {
-         *     const apiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
-         *     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-         *     const res = await fetch(url);
-         *     const data = await res.json();
-         *     if (data.status === 'OK' && data.results.length > 0) {
-         *         return {
-         *             lat: data.results[0].geometry.location.lat,
-         *             lng: data.results[0].geometry.location.lng
-         *         };
-         *     }
-         *     return null;
-         * }
-         * ```
+         * 呼叫 Google Gemini API 執行結構化評論深度診斷
+         * @param {Object} store - 當前選定店家物件
+         * @returns {Promise<Object>} 包含 sentiment, painPoints, marketingCopy, prReply, aiAdvice 之結構化物件
+         */
+        async function fetchGeminiAnalysis(store) {
+            const key = localStorage.getItem('STOREVOICE_GEMINI_KEY') || GEMINI_API_KEY;
+            if (!key || key.trim() === '' || key === 'YOUR_GEMINI_API_KEY') {
+                const inputKey = prompt("尚未偵測到 Google Gemini API Key，請輸入您的金鑰以啟動 AI 深度分析：");
+                if (inputKey && inputKey.trim()) {
+                    localStorage.setItem('STOREVOICE_GEMINI_KEY', inputKey.trim());
+                    return fetchGeminiAnalysis(store);
+                } else {
+                    throw new Error("缺少有效的 Google Gemini API 金鑰");
+                }
+            }
+
+            const promptText = "你是一位專業的餐飲商圈顧問與社群行銷大師。請針對以下餐廳進行全方位評論大數據深度診斷：\n" +
+                "餐廳名稱：" + store.name + "\n" +
+                "料理類別：" + store.category + "\n" +
+                "門市地址：" + store.address + "\n" +
+                "招牌菜色：" + (store.signatureDish || '主廚私房料理') + "\n" +
+                "Google 評價：" + store.stars + " 星 (" + store.reviewCount + " 則評論)\n\n" +
+                "請嚴格輸出符合以下 JSON 格式的物件（所有文字皆使用繁體中文，且不要包含任何 markdown 註釋外框）：\n" +
+                "{\n" +
+                '  "sentiment": { "pos": 82, "neu": 12, "neg": 6 },\n' +
+                '  "painPoints": [\n' +
+                '    "核心客怨痛點一（如：尖峰候位時間偏長）",\n' +
+                '    "核心客怨痛點二（如：周邊停車位尖峰較難尋）",\n' +
+                '    "核心客怨痛點三（如：熱門招牌菜偶有提早售罄）"\n' +
+                '  ],\n' +
+                '  "marketingCopy": "針對該店招牌特色撰寫的 250 字 IG 爆款行銷文案，包含吸睛標題、3大吸客亮點、號召行動與熱門 Hashtags",\n' +
+                '  "prReply": "針對核心負評痛點的專業公關回覆範本（150字內，真誠感謝、針對性改善說明、回訪補償指引）",\n' +
+                '  "aiAdvice": [\n' +
+                '    "具體可落地營運改善策略第一點",\n' +
+                '    "具體可落地營運改善策略第二點"\n' +
+                '  ]\n' +
+                "}";
+
+            // 使用官方穩定 gemini-1.5-flash 端點
+            const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key.trim();
+
+            console.log("🤖 [Gemini API] 正在發送結構化深度診斷請求至 gemini-1.5-flash...");
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: {
+                        response_mime_type: "application/json",
+                        temperature: 0.7
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error("HTTP " + response.status + ": " + (errData.error?.message || response.statusText));
+            }
+
+            const resJson = await response.json();
+            const rawOutput = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawOutput) {
+                throw new Error("Gemini API 未回傳有效分析文字");
+            }
+
+            try {
+                const cleanJson = rawOutput.replace(/^```jsons*/, '').replace(/```s*$/, '').trim();
+                const parsed = JSON.parse(cleanJson);
+                return parsed;
+            } catch (pErr) {
+                console.error("JSON 解析失敗，原始回應:", rawOutput);
+                throw new Error("Gemini 回傳格式非標準 JSON: " + pErr.message);
+            }
+        }
+
+        // 觸發 Gemini AI 分析流程（包含雲端快取機制與即時 UI 連動）
+        async function triggerGeminiAnalysis() {
+            const store = storesData.find(s => s.id === activeStoreId);
+            if (!store) {
+                alert("未選定任何店家");
+                return;
+            }
+
+            // 檢查雲端快取：如果店家已有快取，且使用者未強制重新生成，先提示
+            if (store.geminiAnalysis && store.aiAnalyzedAt) {
+                const reAnalyze = confirm("💡 店家「" + store.name + "」已於 " + new Date(store.aiAnalyzedAt).toLocaleDateString() + " 取得雲端快取報告。\n是否要重新消耗額度調用 Gemini 重新分析？");
+                if (!reAnalyze) return;
+            }
+
+            const btn = document.getElementById('gemini-analyze-btn');
+            const btnText = document.getElementById('gemini-btn-text');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-amber-300 mr-1.5"></i><span>AI 思考診斷中...</span>';
+
+            try {
+                // 1. 呼叫 Gemini API
+                const analysis = await fetchGeminiAnalysis(store);
+                console.log("✨ [Gemini API] 成功生成深度診斷報告:", analysis);
+
+                // 2. 本地資料同步更新
+                store.geminiAnalysis = analysis;
+                store.aiAdvice = analysis.aiAdvice || store.aiAdvice;
+                store.sentiment = analysis.sentiment || store.sentiment;
+                store.aiGeneratedCopy = analysis.marketingCopy;
+                store.aiPrReply = analysis.prReply;
+                if (Array.isArray(analysis.painPoints) && analysis.painPoints.length > 0) {
+                    store.pkWeaknesses = analysis.painPoints;
+                }
+                store.aiAnalyzedAt = new Date().toISOString();
+
+                // 3. 雲端快取機制：將分析結果即時寫回 Firestore
+                if (window.db && store.id && !store.id.startsWith('local_')) {
+                    console.log("☁️ 正在將 Gemini 分析結果寫入 Firestore 快取 [ID: " + store.id + "]...");
+                    await window.db.collection('stores').doc(store.id).update({
+                        geminiAnalysis: analysis,
+                        aiAdvice: store.aiAdvice,
+                        sentiment: store.sentiment,
+                        pkWeaknesses: store.pkWeaknesses,
+                        aiGeneratedCopy: store.aiGeneratedCopy,
+                        aiPrReply: store.aiPrReply,
+                        aiAnalyzedAt: store.aiAnalyzedAt
+                    }).catch(e => console.warn("Firestore 快取寫入提示:", e.message));
+                }
+
+                // 4. 即時平滑刷新 Dashboard 呈現最新 AI 洞察
+                updateDashboard(store);
+                updateGeminiButtonState(store);
+
+                alert("✨ Google Gemini 深度分析已完成！\n情感圓餅圖、痛點公關與行銷文案已全數更新，並已快取至雲端資料庫。");
+            } catch (err) {
+                console.error("Gemini 分析失敗:", err);
+                alert("Gemini 分析失敗：" + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                updateGeminiButtonState(store);
+            }
+        }
+
+        // 更新 Gemini 按鈕狀態（是否已有快取）
+        function updateGeminiButtonState(store) {
+            const btnText = document.getElementById('gemini-btn-text');
+            const btn = document.getElementById('gemini-analyze-btn');
+            if (!btnText || !btn) return;
+
+            if (store && (store.geminiAnalysis || store.aiAnalyzedAt)) {
+                btnText.innerText = "重新 AI 分析";
+                btn.className = "min-h-[44px] text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3.5 py-2 rounded-xl shadow-sm transition inline-flex items-center space-x-1.5 cursor-pointer active:scale-95";
+                btn.title = "此店家已有 Gemini 深度分析快取（點擊可重新生成）";
+            } else {
+                btnText.innerText = "AI 深度分析";
+                btn.className = "min-h-[44px] text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-3.5 py-2 rounded-xl shadow-sm transition inline-flex items-center space-x-1.5 cursor-pointer active:scale-95";
+                btn.title = "使用 Google Gemini 即時生成深度評論與營運報告";
+            }
+        }
+
+        // =========================================================================
+        // 🔑 Google Maps Geocoding API 金鑰預留常數
+        // 欲啟用精準門牌自動換算，請直接在此填入您的 Google Maps API Key：
+        // =========================================================================
+        const GOOGLE_MAPS_API_KEY = ""; // 例如: "AIzaSy..."
+
+        /**
+         * 1. Google Maps Geocoding API 非同步呼叫器
+         * 呼叫 Google 官方 Geocoding 端點，精準萃取 geometry.location.lat 與 lng
+         */
+        async function fetchGoogleGeocoding(address, customKey = '') {
+            // 優先讀取：UI 輸入框 > localStorage > 程式碼常數 GOOGLE_MAPS_API_KEY
+            const uiKey = document.getElementById('new-store-apikey')?.value.trim();
+            const key = customKey || uiKey || localStorage.getItem('STOREVOICE_GOOGLE_MAPS_KEY') || GOOGLE_MAPS_API_KEY;
+
+            if (!key || key.trim() === '' || key === 'YOUR_GOOGLE_MAPS_API_KEY') {
+                console.log("ℹ️ [Geocoding] 尚未設定 GOOGLE_MAPS_API_KEY，自動退回商圈字典備援機制。");
+                return null;
+            }
+
+            try {
+                console.log("🌐 [Geocoding] 正透過 Google Maps Geocoding API 查詢: " + address + "...");
+                const endpoint = "https://maps.googleapis.com/maps/api/geocode/json?address=" + encodeURIComponent(address) + "&key=" + key.trim();
+                const response = await fetch(endpoint);
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+                const data = await response.json();
+
+                if (data.status === 'OK' && Array.isArray(data.results) && data.results.length > 0) {
+                    const loc = data.results[0].geometry.location;
+                    console.log("✅ [Geocoding] Google Maps API 成功解析精準座標:", loc);
+                    return {
+                        lat: parseFloat(loc.lat.toFixed(4)),
+                        lng: parseFloat(loc.lng.toFixed(4)),
+                        formattedAddress: data.results[0].formatted_address,
+                        source: 'google'
+                    };
+                } else {
+                    console.warn("⚠️ [Geocoding] Google Maps API 回傳狀態: " + data.status + "，改用商圈字典。", data.error_message || '');
+                    return null;
+                }
+            } catch (err) {
+                console.warn("⚠️ [Geocoding] Google Maps API 請求受限（如 CORS 限制或網路問題），自動啟用商圈安全備援:", err.message);
+                return null;
+            }
+        }
+
+        /**
+         * 2. 安全備援機制 (Fallback Mock Geocoding Engine)
+         * 根據地址關鍵字（行政區/主要商圈）自動對應中心座標，並加入微幅防重疊偏移
          */
         function geocodeAddress(address) {
-            // 桃園市各區主要商業商圈中心坐標參照表
             const districtCoords = [
                 { keyword: '中壢', lat: 24.9583, lng: 121.2240 },      // 中壢市區 / 監理站商圈
                 { keyword: '龍岡', lat: 24.9285, lng: 121.2505 },      // 龍岡忠貞商圈
@@ -3108,17 +3335,41 @@
             const baseLat = matched ? matched.lat : 24.9750; // 預設桃園市核心
             const baseLng = matched ? matched.lng : 121.2750;
 
-            // 加入 ±0.0025 (~250 公尺) 微幅偽隨機散佈偏移，避免多間同區店家座標完全重疊
+            // 加入 ±0.0025 (~250 公尺) 微幅散佈偏移，避免多間同區店家重疊
             const jitterLat = (Math.random() - 0.5) * 0.005;
             const jitterLng = (Math.random() - 0.5) * 0.005;
 
             return {
                 lat: parseFloat((baseLat + jitterLat).toFixed(4)),
-                lng: parseFloat((baseLng + jitterLng).toFixed(4))
+                lng: parseFloat((baseLng + jitterLng).toFixed(4)),
+                source: 'fallback'
             };
         }
 
-        // 表單送出：寫入 Cloud Firestore
+        /**
+         * 3. 整合型座標解析器 (手動 > Google Maps API > 商圈安全備援)
+         */
+        async function resolveStoreCoordinates(address) {
+            // ① 優先檢驗老闆是否在進階選單中手動指定座標
+            const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
+            const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
+            if (!isNaN(manualLat) && !isNaN(manualLng)) {
+                console.log("📍 [Geocoding] 採用老闆手動指定精確坐標：[" + manualLat + ", " + manualLng + "]");
+                return { lat: manualLat, lng: manualLng, source: 'manual' };
+            }
+
+            // ② 嘗試透過 Google Maps Geocoding API 查詢
+            const googleCoords = await fetchGoogleGeocoding(address);
+            if (googleCoords) {
+                return googleCoords;
+            }
+
+            // ③ 安全退回商圈中心對應機制 (保證永不卡住)
+            const fallback = geocodeAddress(address);
+            console.log("📍 [Geocoding] 已自動退回商圈字典對應坐標：[" + fallback.lat + ", " + fallback.lng + "]");
+            return fallback;
+        }
+
         async function handleCreateStore(event) {
             event.preventDefault();
             const btn = document.getElementById('submit-store-btn');
@@ -3132,21 +3383,10 @@
             const reviewCount = document.getElementById('new-store-reviews').value.trim() || '1,000';
             const address = document.getElementById('new-store-address').value.trim();
 
-            // 智慧座標處理：優先讀取手動自訂座標，若無則啟動地址自動編碼 (Mock Geocoding)
-            const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
-            const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
-            let lat, lng;
-
-            if (!isNaN(manualLat) && !isNaN(manualLng)) {
-                lat = manualLat;
-                lng = manualLng;
-                console.log("📍 [StoreVoice] 使用老闆手動指定 GPS 坐標：[" + lat + ", " + lng + "]");
-            } else {
-                const autoCoords = geocodeAddress(address);
-                lat = autoCoords.lat;
-                lng = autoCoords.lng;
-                console.log("📍 [StoreVoice] 已依地址「" + address + "」自動對應商圈坐標：[" + lat + ", " + lng + "]");
-            }
+            // 智慧座標解析流程 (手動自訂 > Google Maps API > 商圈安全備援)
+            const coords = await resolveStoreCoordinates(address);
+            const lat = coords.lat;
+            const lng = coords.lng;
             const signatureDish = document.getElementById('new-store-signature').value.trim() || '主廚私房招牌推薦料理';
             const targetAudience = document.getElementById('new-store-audience').value.trim() || '老饕約會、家庭聚餐';
 
@@ -3358,7 +3598,10 @@
                 `).join('');
             }
 
-            const copy = generateMarketingCopy(store, currentMarketingTone);
+            // 若店家具備 Gemini 生成的最新文案，優先採用
+            const copy = (store.geminiAnalysis?.marketingCopy && currentMarketingTone === 'ig')
+                ? store.geminiAnalysis.marketingCopy
+                : (store.aiGeneratedCopy && currentMarketingTone === 'ig' ? store.aiGeneratedCopy : generateMarketingCopy(store, currentMarketingTone));
             output.value = copy;
             if (charCount) {
                 charCount.innerText = `${copy.length} 字元`;
@@ -3519,7 +3762,14 @@
         function updatePrReplyText(store) {
             const prOutput = document.getElementById('pr-reply-output');
             if (prOutput) {
-                prOutput.value = generatePrReply(store, currentPrStrategy, selectedPainIndex);
+                // 優先採用 Gemini 生成之深度客製公關回覆
+                if (store.geminiAnalysis?.prReply && currentPrStrategy === 'apology') {
+                    prOutput.value = store.geminiAnalysis.prReply;
+                } else if (store.aiPrReply && currentPrStrategy === 'apology') {
+                    prOutput.value = store.aiPrReply;
+                } else {
+                    prOutput.value = generatePrReply(store, currentPrStrategy, selectedPainIndex);
+                }
             }
         }
 
@@ -3871,6 +4121,9 @@
             } else if (currentDashboardTab === 'benchmark' && roiGrowthChart) {
                 setTimeout(() => roiGrowthChart.resize(), 50);
             }
+
+            // 更新 Gemini 按鈕快取狀態
+            updateGeminiButtonState(store);
 
         }
 
