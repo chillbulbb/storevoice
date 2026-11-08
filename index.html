@@ -204,6 +204,27 @@
                 <i class="fa-solid fa-share-nodes text-blue-600 mr-1.5 text-sm"></i>
                 <span id="share-platform-text">分享平台</span>
             </button>
+
+            <!-- 老闆 Google 會員登入 / 狀態模組 -->
+            <button id="auth-login-btn" onclick="loginWithGoogle()"
+                class="text-xs bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center cursor-pointer shadow-sm active:scale-95">
+                <i class="fa-brands fa-google text-red-500 mr-1.5 text-sm"></i>
+                <span>老闆登入</span>
+            </button>
+
+            <div id="auth-user-profile"
+                class="hidden items-center space-x-2 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl shadow-sm min-h-[44px]">
+                <img id="user-avatar" src="" alt="Google Avatar"
+                    class="w-7 h-7 rounded-full object-cover border border-slate-200 shrink-0">
+                <div class="hidden sm:flex flex-col text-left">
+                    <span id="user-name" class="text-xs font-bold text-slate-800 leading-tight truncate max-w-[110px]">老闆</span>
+                    <span class="text-[10px] text-emerald-600 font-medium leading-tight">已登入</span>
+                </div>
+                <button onclick="logout()" title="登出"
+                    class="text-xs text-slate-500 hover:text-red-600 hover:bg-white px-2 py-1.5 rounded-lg transition font-medium border border-transparent hover:border-slate-200 cursor-pointer">
+                    <i class="fa-solid fa-right-from-bracket mr-1"></i>登出
+                </button>
+            </div>
         </div>
     </header>
 
@@ -2025,6 +2046,7 @@
         window.onload = async function () {
             initMap();
             bindSearchEvents();
+            initAuthListener();
             await loadStoresData();
             applyFilters(false);
 
@@ -2529,6 +2551,74 @@
                 document.body.removeChild(tempInput);
                 copySuccess();
             }
+        }
+
+        // 頂部導覽列：老闆 Google 會員認證模組 (Firebase Auth)
+        async function loginWithGoogle() {
+            if (!window.auth) {
+                alert("Firebase 認證模組尚未就緒，請重新整理網頁後重試。");
+                return;
+            }
+            const provider = new firebase.auth.GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+
+            try {
+                const result = await window.auth.signInWithPopup(provider);
+                console.log("✅ Google 登入成功:", result.user.displayName);
+            } catch (error) {
+                if (error.code === 'auth/popup-closed-by-user') {
+                    console.log("登入視窗已由使用者關閉");
+                    return;
+                }
+                if (error.code === 'auth/popup-blocked') {
+                    // 若彈跳視窗被手機或瀏覽器阻擋，降級使用 Redirect
+                    window.auth.signInWithRedirect(provider);
+                    return;
+                }
+                console.error("Google 登入失敗:", error);
+                alert("Google 登入失敗：" + (error.message || error.code));
+            }
+        }
+
+        async function logout() {
+            if (!window.auth) return;
+            try {
+                await window.auth.signOut();
+                console.log("✅ 已成功登出");
+            } catch (error) {
+                console.error("登出失敗:", error);
+                alert("登出失敗：" + error.message);
+            }
+        }
+
+        function initAuthListener() {
+            if (!window.auth) return;
+            window.auth.onAuthStateChanged((user) => {
+                const loginBtn = document.getElementById('auth-login-btn');
+                const userProfile = document.getElementById('auth-user-profile');
+                const userAvatar = document.getElementById('user-avatar');
+                const userName = document.getElementById('user-name');
+
+                if (user) {
+                    if (loginBtn) loginBtn.classList.add('hidden');
+                    if (userProfile) {
+                        userProfile.classList.remove('hidden');
+                        userProfile.classList.add('flex');
+                    }
+                    if (userAvatar) {
+                        userAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'Boss')}&background=2563eb&color=fff`;
+                    }
+                    if (userName) {
+                        userName.innerText = user.displayName || user.email || '商家老闆';
+                    }
+                } else {
+                    if (loginBtn) loginBtn.classList.remove('hidden');
+                    if (userProfile) {
+                        userProfile.classList.add('hidden');
+                        userProfile.classList.remove('flex');
+                    }
+                }
+            });
         }
 
         // 11. AI 一鍵生成新客行銷文案引擎 (MVP Phase 1)
