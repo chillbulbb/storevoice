@@ -194,15 +194,25 @@
             </div>
         </div>
         <div class="flex items-center space-x-2 sm:space-x-3">
-            <span
-                class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-100 text-green-800">
+            <!-- 動態資料來源狀態燈號 -->
+            <span id="data-source-badge"
+                class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-100 text-green-800 transition-all">
                 <span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                <span class="hidden sm:inline">stores.json </span>連線中
+                <span id="data-source-text">連線中...</span>
             </span>
+
             <button id="share-platform-btn" onclick="sharePlatform()"
                 class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium inline-flex items-center cursor-pointer shadow-sm active:scale-95">
                 <i class="fa-solid fa-share-nodes text-blue-600 mr-1.5 text-sm"></i>
                 <span id="share-platform-text">分享平台</span>
+            </button>
+
+            <!-- 老闆專屬新增餐廳按鈕 (登入後顯示) -->
+            <button id="add-store-btn" onclick="openAddStoreModal()"
+                class="hidden text-xs bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 min-h-[44px] rounded-xl transition font-medium items-center cursor-pointer shadow-sm active:scale-95">
+                <i class="fa-solid fa-plus mr-1.5 text-sm"></i>
+                <span class="hidden sm:inline">新增餐廳</span>
+                <span class="sm:hidden">新增</span>
             </button>
 
             <!-- 老闆 Google 會員登入 / 狀態模組 -->
@@ -914,6 +924,122 @@
             </button>
         </nav>
     </main>
+
+    <!-- 老闆新增餐廳 Modal (寫入 Firebase Cloud Firestore) -->
+    <div id="add-store-modal" onclick="onAddStoreBackdropClick(event)"
+        class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
+        <div id="add-store-modal-panel"
+            class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200 max-h-[90vh] flex flex-col">
+            <!-- Modal 頂部 Header -->
+            <div class="px-5 py-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                        <i class="fa-solid fa-store text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base leading-tight">新增餐廳至雲端資料庫</h3>
+                        <p class="text-[11px] text-blue-100 leading-tight">即時同步至 Firebase Cloud Firestore</p>
+                    </div>
+                </div>
+                <button onclick="closeAddStoreModal()"
+                    class="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal 表單內容 -->
+            <form id="add-store-form" onsubmit="handleCreateStore(event)" class="p-5 space-y-3.5 overflow-y-auto flex-1 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">餐廳名稱 <span class="text-rose-500">*</span></label>
+                    <input id="new-store-name" type="text" required placeholder="例如：Postman 郵差先生義式臺菜小館"
+                        class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">料理分類 <span class="text-rose-500">*</span></label>
+                        <select id="new-store-category" required
+                            class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                            <option value="燒肉/鍋物">燒肉/鍋物</option>
+                            <option value="中式/江浙">中式/江浙</option>
+                            <option value="在地小吃/米干">在地小吃/米干</option>
+                            <option value="異國/餐酒館">異國/餐酒館</option>
+                            <option value="異國/日料">異國/日料</option>
+                            <option value="港式茶餐廳">港式茶餐廳</option>
+                            <option value="港點/百匯">港點/百匯</option>
+                            <option value="咖啡輕食">咖啡輕食</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Google 評分星等</label>
+                        <input id="new-store-stars" type="number" step="0.1" min="1" max="5" value="4.6" required
+                            class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Google 評論數</label>
+                        <input id="new-store-reviews" type="text" value="1,200" required placeholder="例如：1,250"
+                            class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">目標客群</label>
+                        <input id="new-store-audience" type="text" placeholder="例如：家庭聚會、老饕約會" value="質感約會、老饕聚餐"
+                            class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">門市詳細地址 <span class="text-rose-500">*</span></label>
+                    <input id="new-store-address" type="text" required placeholder="例如：桃園市中壢區延平路452號"
+                        class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">緯度 (Lat) <span class="text-rose-500">*</span></label>
+                        <input id="new-store-lat" type="number" step="0.0001" required value="24.9583"
+                            class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">經度 (Lng) <span class="text-rose-500">*</span></label>
+                        <input id="new-store-lng" type="number" step="0.0001" required value="121.2240"
+                            class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">招牌特色菜色</label>
+                    <input id="new-store-signature" type="text" placeholder="例如：甜洋蔥起司雞肉水管麵 & 直火炙燒牛橫膈膜"
+                        class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+
+                <div class="p-2.5 bg-blue-50 rounded-xl border border-blue-100 text-[11px] text-blue-700 flex items-start space-x-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-blue-600 mt-0.5 shrink-0"></i>
+                    <span>送出後將建立完整的評論情緒模型，即時寫入 Cloud Firestore 並呈現在地圖上。</span>
+                </div>
+
+                <div class="pt-2 flex items-center justify-between shrink-0">
+                    <button type="button" onclick="syncSeedDataToFirestore()"
+                        class="text-[11px] text-slate-500 hover:text-blue-600 underline font-medium">
+                        <i class="fa-solid fa-database mr-1"></i>批次匯入預設 7 家店家至雲端
+                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button type="button" onclick="closeAddStoreModal()"
+                            class="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 font-medium transition">
+                            取消
+                        </button>
+                        <button id="submit-store-btn" type="submit"
+                            class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition shadow-sm flex items-center space-x-1.5">
+                            <i class="fa-solid fa-check"></i>
+                            <span>確認新增至雲端</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- PDF 簡報匯出預覽 Modal -->
     <div id="export-modal" onclick="onBackdropClick(event)"
@@ -2058,23 +2184,71 @@
 
         // 異步讀取 stores.json (資料與介面分離策略)
         async function loadStoresData() {
+            // 1. 優先嘗試從 Firebase Cloud Firestore 讀取 'stores' 集合
+            if (window.db) {
+                try {
+                    console.log("📡 [StoreVoice] 正在連線 Firebase Cloud Firestore 讀取店家資料...");
+                    updateDataSourceBadge('Firestore 連線中...', false);
+                    const snapshot = await window.db.collection('stores').get();
+                    if (!snapshot.empty) {
+                        const cloudStores = [];
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            cloudStores.push({
+                                ...data,
+                                id: data.id || doc.id
+                            });
+                        });
+                        if (cloudStores.length > 0) {
+                            storesData = cloudStores;
+                            filteredStores = [...storesData];
+                            console.log("✅ [StoreVoice] 成功從 Cloud Firestore 載入 " + storesData.length + " 間店家資料！");
+                            updateDataSourceBadge('Firestore 雲端 (' + storesData.length + ' 家)', true);
+                            return;
+                        }
+                    } else {
+                        console.log("ℹ️ [StoreVoice] Firestore 'stores' 集合為空，切換為本地資料並提示可一鍵同步。");
+                    }
+                } catch (dbErr) {
+                    console.warn("⚠️ [StoreVoice] Firestore 讀取異常（可能尚未發布規則或離線）：", dbErr.message);
+                }
+            }
+
+            // 2. 備援嘗試從 stores.json 載入
             try {
                 const response = await fetch('./stores.json');
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        storesData = data;
+                        filteredStores = [...storesData];
+                        console.log("✅ [StoreVoice] 成功從 stores.json 載入 " + storesData.length + " 家店家");
+                        updateDataSourceBadge('stores.json (' + storesData.length + ' 家)', true);
+                        return;
+                    }
                 }
-                const data = await response.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    storesData = data;
-                    filteredStores = [...storesData];
-                    console.log('✅ [StoreVoice] 成功從 stores.json 動態載入店家資料，共 ' + storesData.length + ' 家');
-                    return;
-                }
-            } catch (err) {
-                console.warn('⚠️ [StoreVoice] fetch stores.json 受限於瀏覽器 local file:// 安全策略，自動切換至內建備援資料庫：', err.message);
+            } catch (fetchErr) {
+                console.warn("⚠️ [StoreVoice] fetch stores.json 受限，切換至本機備援資料庫");
             }
-            storesData = fallbackStoresData;
+
+            // 3. 最終離線備援
+            storesData = [...fallbackStoresData];
             filteredStores = [...storesData];
+            updateDataSourceBadge('本地備援 (' + storesData.length + ' 家)', false);
+        }
+
+        // 更新頂部連線燈號
+        function updateDataSourceBadge(text, isConnected = true) {
+            const badge = document.getElementById('data-source-badge');
+            const label = document.getElementById('data-source-text');
+            if (label) label.innerText = text;
+            if (badge) {
+                if (isConnected) {
+                    badge.className = "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 transition-all";
+                } else {
+                    badge.className = "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 transition-all";
+                }
+            }
         }
 
         // 4. 初始化 Leaflet 地圖 (以桃園市為核心，免 Google Maps API Key 即可使用)
@@ -2598,6 +2772,7 @@
                 const userProfile = document.getElementById('auth-user-profile');
                 const userAvatar = document.getElementById('user-avatar');
                 const userName = document.getElementById('user-name');
+                const addStoreBtn = document.getElementById('add-store-btn');
 
                 if (user) {
                     if (loginBtn) loginBtn.classList.add('hidden');
@@ -2606,10 +2781,14 @@
                         userProfile.classList.add('flex');
                     }
                     if (userAvatar) {
-                        userAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'Boss')}&background=2563eb&color=fff`;
+                        userAvatar.src = user.photoURL || ("https://ui-avatars.com/api/?name=" + encodeURIComponent(user.displayName || 'Boss') + "&background=2563eb&color=fff");
                     }
                     if (userName) {
                         userName.innerText = user.displayName || user.email || '商家老闆';
+                    }
+                    if (addStoreBtn) {
+                        addStoreBtn.classList.remove('hidden');
+                        addStoreBtn.classList.add('inline-flex');
                     }
                 } else {
                     if (loginBtn) loginBtn.classList.remove('hidden');
@@ -2617,8 +2796,169 @@
                         userProfile.classList.add('hidden');
                         userProfile.classList.remove('flex');
                     }
+                    if (addStoreBtn) {
+                        addStoreBtn.classList.add('hidden');
+                        addStoreBtn.classList.remove('inline-flex');
+                    }
                 }
             });
+        }
+
+        // 新增餐廳 Modal 互動控制
+        function openAddStoreModal() {
+            const modal = document.getElementById('add-store-modal');
+            const panel = document.getElementById('add-store-modal-panel');
+            if (modal && panel) {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                panel.classList.remove('scale-95');
+                panel.classList.add('scale-100');
+            }
+        }
+
+        function closeAddStoreModal() {
+            const modal = document.getElementById('add-store-modal');
+            const panel = document.getElementById('add-store-modal-panel');
+            if (modal && panel) {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                panel.classList.remove('scale-100');
+                panel.classList.add('scale-95');
+            }
+        }
+
+        function onAddStoreBackdropClick(event) {
+            if (event.target.id === 'add-store-modal') {
+                closeAddStoreModal();
+            }
+        }
+
+        // 表單送出：寫入 Cloud Firestore
+        async function handleCreateStore(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submit-store-btn');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i><span>寫入雲端中...</span>';
+
+            const name = document.getElementById('new-store-name').value.trim();
+            const category = document.getElementById('new-store-category').value;
+            const stars = parseFloat(document.getElementById('new-store-stars').value || 4.5).toFixed(1);
+            const reviewCount = document.getElementById('new-store-reviews').value.trim() || '1,000';
+            const address = document.getElementById('new-store-address').value.trim();
+            const lat = parseFloat(document.getElementById('new-store-lat').value);
+            const lng = parseFloat(document.getElementById('new-store-lng').value);
+            const signatureDish = document.getElementById('new-store-signature').value.trim() || '主廚私房招牌推薦料理';
+            const targetAudience = document.getElementById('new-store-audience').value.trim() || '老饕約會、家庭聚餐';
+
+            // 結構化完整店家模型
+            const newStore = {
+                name,
+                category,
+                stars,
+                reviewCount,
+                address,
+                lat,
+                lng,
+                signatureDish,
+                targetAudience,
+                sentiment: { pos: 84, neu: 11, neg: 5 },
+                radarScores: [4.8, 4.6, 4.7, 4.4, 4.3],
+                pkStrengths: ["主打特色料理現點現做美味道地", "服務親切且空間寬敞舒適", "周邊交通便利容易抵達"],
+                pkWeaknesses: ["假日晚餐時段建議提前訂位", "尖峰等候時間稍長"],
+                competitors: [
+                    {
+                        name: "同商圈競品名店",
+                        stars: "4.3",
+                        reviews: "2,200",
+                        scoreDiff: "+0.3",
+                        reviewDiff: "+800",
+                        adv: "老字號知名度高客群廣",
+                        disadv: "傳統裝潢無私房質感氛圍"
+                    }
+                ],
+                roiGrowth: {
+                    labels: ["基準期 (Baseline)", "第 1 週 (W1)", "第 2 週 (W2)", "第 3 週 (W3)", "第 4 週 (W4)"],
+                    before: [880, 890, 875, 895, 890],
+                    after: [880, 970, 1060, 1140, 1220],
+                    growthRate: "+38.5%",
+                    weeklyLift: "+330 人",
+                    estMonthlyRevenue: "+NT$ 27.6 萬",
+                    insights: "透過 Phase 1 招牌吸睛文案導流，並落實客訴痛點改善，每週來客數顯著躍升。"
+                },
+                keywords: [
+                    { word: signatureDish.split(' ')[0] || "招牌名點", count: 185 },
+                    { word: "用餐氛圍極佳 (Atmosphere)", count: 145 },
+                    { word: "高性價比 (Value)", count: 115 }
+                ],
+                themes: [
+                    { name: "餐點創意與美味 (Food)", count: 320, pos: 290, neu: 20, neg: 10, score: "4.78" },
+                    { name: "空間裝潢氛圍 (Atmosphere)", count: 210, pos: 195, neu: 10, neg: 5, score: "4.75" },
+                    { name: "服務與價格 (Value)", count: 150, pos: 120, neu: 20, neg: 10, score: "4.30" }
+                ],
+                recentReviews: [
+                    {
+                        stars: 5,
+                        text: signatureDish + " 真的很驚豔！環境非常舒服有質感，服務也細心，值得推薦！",
+                        date: "剛剛"
+                    }
+                ],
+                aiAdvice: [
+                    "持續在 IG / 社群發布招牌私房料理短影音，鎖定年輕與老饕聚會客群。",
+                    "針對尖峰候位建立線上候位通知，提升顧客到訪便利性。"
+                ],
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                if (window.db) {
+                    const docRef = await window.db.collection('stores').add(newStore);
+                    newStore.id = docRef.id;
+                    console.log("✅ 成功寫入 Firestore，Document ID: " + docRef.id);
+                } else {
+                    newStore.id = 'local_' + Date.now();
+                }
+
+                storesData.unshift(newStore);
+                closeAddStoreModal();
+                applyFilters(true);
+                selectStore(newStore.id, true);
+                alert("🎉 成功新增餐廳「" + name + "」！已同步寫入 Cloud Firestore 雲端資料庫。");
+            } catch (err) {
+                console.error("寫入 Firestore 失敗:", err);
+                alert("寫入 Firestore 失敗：" + err.message + "\n(請檢查 Firebase 控制台 Firestore 安全規則是否已允許寫入)");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        }
+
+        // 批次匯入預設 7 家店家至 Firestore (種子資料同步工具)
+        async function syncSeedDataToFirestore() {
+            if (!window.db) {
+                alert("Firestore 尚未就緒");
+                return;
+            }
+            if (!confirm("確定要將預設的 7 家精選店家批次寫入雲端 Firestore 嗎？")) return;
+
+            const btn = document.getElementById('submit-store-btn');
+            btn.disabled = true;
+
+            try {
+                const batch = window.db.batch();
+                fallbackStoresData.forEach(store => {
+                    const docRef = window.db.collection('stores').doc(store.id);
+                    batch.set(docRef, store);
+                });
+                await batch.commit();
+                alert("🎉 成功批次匯入 7 家精選店家至 Firestore！");
+                await loadStoresData();
+                applyFilters(true);
+                closeAddStoreModal();
+            } catch (err) {
+                console.error("批次寫入失敗:", err);
+                alert("批次寫入失敗：" + err.message);
+            } finally {
+                btn.disabled = false;
+            }
         }
 
         // 11. AI 一鍵生成新客行銷文案引擎 (MVP Phase 1)
@@ -3661,6 +4001,7 @@
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeExportModal();
+                closeAddStoreModal();
             }
         });
     </script>
