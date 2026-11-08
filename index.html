@@ -1055,6 +1055,99 @@
         </div>
     </div>
 
+    <!-- 🚀 AI 商家資訊預覽確認與微調 Modal (Human-in-the-loop) -->
+    <div id="quick-confirm-modal" onclick="onQuickConfirmBackdropClick(event)"
+        class="fixed inset-0 z-[2100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs opacity-0 pointer-events-none transition-all duration-200">
+        <div id="quick-confirm-panel"
+            class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200 flex flex-col">
+            <!-- Modal Header -->
+            <div class="px-5 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center shrink-0">
+                <div class="flex items-center space-x-2">
+                    <div class="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
+                        <i class="fa-solid fa-wand-magic-sparkles text-amber-300 text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm leading-tight">確認店家與門牌地址</h3>
+                        <p class="text-[10px] text-blue-100 leading-tight">請核對 AI 萃取資訊，可手動微調門牌號碼</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeQuickConfirmModal()"
+                    class="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-5 space-y-3.5 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        餐廳名稱 <span class="text-rose-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <i class="fa-solid fa-store absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input id="confirm-store-name" type="text"
+                            class="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs font-semibold text-slate-800 bg-white">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-semibold text-slate-700">
+                            門市詳細地址 <span class="text-rose-500">*</span>
+                        </label>
+                        <span class="text-[10px] text-indigo-600 font-medium">可手動修正門牌號碼</span>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-location-dot absolute left-3 top-1/2 -translate-y-1/2 text-rose-500"></i>
+                        <input id="confirm-store-address" type="text"
+                            placeholder="例如：桃園市桃園區大興西路二段268號"
+                            class="w-full pl-8 pr-3 py-2 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs text-slate-800 bg-blue-50/30 font-medium">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">料理分類</label>
+                        <select id="confirm-store-category"
+                            class="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-xs">
+                            <option value="燒肉/鍋物">燒肉/鍋物</option>
+                            <option value="中式/江浙">中式/江浙</option>
+                            <option value="在地小吃/米干">在地小吃/米干</option>
+                            <option value="異國/餐酒館">異國/餐酒館</option>
+                            <option value="異國/日料">異國/日料</option>
+                            <option value="港式茶餐廳">港式茶餐廳</option>
+                            <option value="港點/百匯">港點/百匯</option>
+                            <option value="咖啡輕食">咖啡輕食</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">招牌特色菜色</label>
+                        <input id="confirm-store-signature" type="text"
+                            class="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs bg-white">
+                    </div>
+                </div>
+
+                <div class="p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-800 flex items-start space-x-2">
+                    <i class="fa-solid fa-circle-check text-amber-600 mt-0.5 shrink-0"></i>
+                    <span>確認無誤後，系統將依最終門牌進行精準 Geocoding 定位、同步寫入雲端並呈現全套 AI 分析報告。</span>
+                </div>
+
+                <!-- 按鈕區 -->
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeQuickConfirmModal()"
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-medium transition cursor-pointer">
+                        取消
+                    </button>
+                    <button type="button" id="confirm-and-save-btn" onclick="executeFinalQuickSave()"
+                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer active:scale-95">
+                        <i class="fa-solid fa-check"></i>
+                        <span>確認無誤並分析</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 老闆新增餐廳 Modal (寫入 Firebase Cloud Firestore) -->
     <div id="add-store-modal" onclick="onAddStoreBackdropClick(event)"
         class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
@@ -3149,6 +3242,33 @@
             }
         }
 
+        // 🚀 AI 商家資訊預覽確認與微調 Modal 互動控制
+        function openQuickConfirmModal() {
+            const modal = document.getElementById('quick-confirm-modal');
+            const panel = document.getElementById('quick-confirm-panel');
+            if (modal && panel) {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                panel.classList.remove('scale-95');
+                panel.classList.add('scale-100');
+            }
+        }
+
+        function closeQuickConfirmModal() {
+            const modal = document.getElementById('quick-confirm-modal');
+            const panel = document.getElementById('quick-confirm-panel');
+            if (modal && panel) {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                panel.classList.remove('scale-100');
+                panel.classList.add('scale-95');
+            }
+        }
+
+        function onQuickConfirmBackdropClick(event) {
+            if (event.target.id === 'quick-confirm-modal') {
+                closeQuickConfirmModal();
+            }
+        }
+
         // 表單送出：寫入 Cloud Firestore
         // =========================================================================
         // 🤖 Google Gemini API 金鑰預留常數與配置
@@ -3509,6 +3629,12 @@
         /**
          * 🚀 殺手級功能處理器：一鍵貼上 Google Maps 網址或店家名稱自動分析、雲端寫入與定位
          */
+        // 暫存 AI 萃取的店家資訊物件，供老闆預覽確認與微調
+        let pendingQuickStore = null;
+
+        /**
+         * 🚀 殺手級功能第一階段：一鍵萃取店家資訊並彈出預覽確認 Modal (可手動微調門牌號碼)
+         */
         async function handleQuickAnalyzeFromUrl(fromModal = false) {
             const inputEl = document.getElementById(fromModal ? 'modal-quick-url-input' : 'quick-url-input');
             const rawInput = inputEl ? inputEl.value.trim() : '';
@@ -3540,50 +3666,106 @@
             const setButtonLoading = (loading) => {
                 if (mainBtn && mainText) {
                     mainBtn.disabled = loading;
-                    mainText.innerHTML = loading ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析建檔中...' : '一鍵分析';
+                    mainText.innerHTML = loading ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中...' : '一鍵分析';
                 }
                 if (modalBtn && modalText) {
                     modalBtn.disabled = loading;
-                    modalText.innerHTML = loading ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 建檔中...' : '一鍵分析';
+                    modalText.innerHTML = loading ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中...' : '一鍵分析';
                 }
             };
 
             setButtonLoading(true);
 
             try {
-                console.log("🚀 [Quick Analyze] 開始執行一鍵分析:", effectiveInput);
+                console.log("🚀 [Quick Analyze] 開始執行 AI 智慧萃取:", effectiveInput);
 
                 // 1. Gemini 智慧萃取門市詳細門牌地址與深度營運分析
                 const extracted = await extractAndAnalyzeStoreWithGemini(effectiveInput);
-                console.log("✨ [Quick Analyze] 成功萃取真實店家門牌資訊與報告:", extracted);
+                console.log("✨ [Quick Analyze] 成功萃取店家門牌資訊與報告:", extracted);
 
-                const storeName = extracted.name || "未知名稱店家";
-                const storeAddress = extracted.address || "桃園市";
-                const storeCategory = extracted.category || "燒肉/鍋物";
+                // 2. 暫存至記憶體
+                pendingQuickStore = extracted;
 
-                // 2. 智慧座標解析（Google Geocoding > Gemini 門市高精度坐標 > 商圈路街字典備援）
-                const coords = await resolveStoreCoordinates(storeAddress, { lat: extracted.lat, lng: extracted.lng });
-                console.log("📍 [Quick Analyze] 精準座標定位結果:", coords);
+                // 3. 自動反填至「預覽確認與微調視窗」
+                const nameInput = document.getElementById('confirm-store-name');
+                const addrInput = document.getElementById('confirm-store-address');
+                const catInput = document.getElementById('confirm-store-category');
+                const sigInput = document.getElementById('confirm-store-signature');
 
-                // 3. 結構化完整 Store 模型 (含 AI 快取與各項營運對標指標)
+                if (nameInput) nameInput.value = extracted.name || '';
+                if (addrInput) addrInput.value = extracted.address || '';
+                if (catInput) {
+                    const validOpts = Array.from(catInput.options).map(o => o.value);
+                    catInput.value = validOpts.includes(extracted.category) ? extracted.category : '燒肉/鍋物';
+                }
+                if (sigInput) sigInput.value = extracted.signatureDish || '';
+
+                // 4. 彈出確認小視窗供老闆檢視與微調門牌
+                openQuickConfirmModal();
+
+                if (fromModal) {
+                    closeAddStoreModal();
+                }
+
+            } catch (err) {
+                console.error("一鍵分析萃取失敗:", err);
+                alert("一鍵分析失敗：" + err.message + "\n(請確認網路連線與 Gemini API 金鑰)");
+            } finally {
+                setButtonLoading(false);
+            }
+        }
+
+        /**
+         * 🚀 殺手級功能第二階段：老闆確認/微調地址後，正式執行精準 Geocoding、寫入 Firestore 並展現報告
+         */
+        async function executeFinalQuickSave() {
+            if (!pendingQuickStore) {
+                alert("未偵測到待確認的店家資料，請重新執行一鍵分析。");
+                closeQuickConfirmModal();
+                return;
+            }
+
+            const storeName = document.getElementById('confirm-store-name')?.value.trim() || pendingQuickStore.name || "未知名稱店家";
+            const storeAddress = document.getElementById('confirm-store-address')?.value.trim() || pendingQuickStore.address || "桃園市";
+            const storeCategory = document.getElementById('confirm-store-category')?.value || pendingQuickStore.category || "燒肉/鍋物";
+            const storeSignature = document.getElementById('confirm-store-signature')?.value.trim() || pendingQuickStore.signatureDish || "主廚推薦特色料理";
+
+            const confirmBtn = document.getElementById('confirm-and-save-btn');
+            const origHtml = confirmBtn ? confirmBtn.innerHTML : '';
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>精準定位並建檔中...';
+            }
+
+            try {
+                // 1. 精準 Geocoding 座標定位：
+                // 若老闆手動修改過門牌地址，則不採用 Gemini 的原預估坐標，而是讓 Geocoding 依最新門牌重新抓取！
+                const addressModified = (storeAddress !== pendingQuickStore.address);
+                const referenceCoords = addressModified ? null : { lat: pendingQuickStore.lat, lng: pendingQuickStore.lng };
+
+                console.log("📍 [Final Save] 正在進行精準座標換算，地址:", storeAddress, "是否微調過:", addressModified);
+                const coords = await resolveStoreCoordinates(storeAddress, referenceCoords);
+                console.log("📍 [Final Save] 最終精準座標:", coords);
+
+                // 2. 結構化完整 Store 模型 (保留 Gemini 深度分析快取)
                 const newStore = {
                     name: storeName,
                     category: storeCategory,
-                    stars: (parseFloat(extracted.stars) || 4.5).toFixed(1),
-                    reviewCount: String(extracted.reviewCount || "1,000"),
+                    stars: (parseFloat(pendingQuickStore.stars) || 4.5).toFixed(1),
+                    reviewCount: String(pendingQuickStore.reviewCount || "1,000"),
                     address: storeAddress,
                     lat: coords.lat,
                     lng: coords.lng,
-                    signatureDish: extracted.signatureDish || "主廚推薦特色料理",
-                    targetAudience: extracted.targetAudience || "家庭聚餐、朋友聚會",
-                    sentiment: extracted.sentiment || { pos: 84, neu: 11, neg: 5 },
+                    signatureDish: storeSignature,
+                    targetAudience: pendingQuickStore.targetAudience || "家庭聚餐、朋友聚會",
+                    sentiment: pendingQuickStore.sentiment || { pos: 84, neu: 11, neg: 5 },
                     radarScores: [4.8, 4.6, 4.7, 4.4, 4.3],
                     pkStrengths: [
-                        "主打" + (extracted.signatureDish || "私房招牌菜") + "道地現做",
+                        "主打" + storeSignature + "道地現做",
                         "空間舒適且服務貼心親切",
                         "交通便利、知名度極高"
                     ],
-                    pkWeaknesses: extracted.painPoints || [
+                    pkWeaknesses: pendingQuickStore.painPoints || [
                         "尖峰時段候位時間較長",
                         "周邊停車場較難尋",
                         "招牌料理偶有提早售罄"
@@ -3609,7 +3791,7 @@
                         insights: "透過 AI 爆款文案精準導流，並針對候位與招牌備料改善，業績顯著提升。"
                     },
                     keywords: [
-                        { word: (extracted.signatureDish || "特色招牌").split(' ')[0] || "招牌名點", count: 190 },
+                        { word: storeSignature.split(' ')[0] || "招牌名點", count: 190 },
                         { word: "用餐氛圍極佳 (Atmosphere)", count: 150 },
                         { word: "服務用心 (Service)", count: 120 }
                     ],
@@ -3621,23 +3803,23 @@
                     recentReviews: [
                         {
                             stars: 5,
-                            text: (extracted.signatureDish || "招牌餐點") + " 真的很驚艷！環境乾淨舒服，服務也很細心，下次一定會再來！",
+                            text: storeSignature + " 真的很驚艷！環境乾淨舒服，服務也很細心，下次一定會再來！",
                             date: "剛剛"
                         }
                     ],
-                    aiAdvice: extracted.aiAdvice || [
+                    aiAdvice: pendingQuickStore.aiAdvice || [
                         "建議導入線上候位預約機制，舒緩尖峰排隊人潮。",
                         "加強社群短影音行銷，主打招牌料理視覺張力。"
                     ],
                     geminiAnalysis: {
-                        sentiment: extracted.sentiment || { pos: 84, neu: 11, neg: 5 },
-                        painPoints: extracted.painPoints || [],
-                        marketingCopy: extracted.marketingCopy || '',
-                        prReply: extracted.prReply || '',
-                        aiAdvice: extracted.aiAdvice || []
+                        sentiment: pendingQuickStore.sentiment || { pos: 84, neu: 11, neg: 5 },
+                        painPoints: pendingQuickStore.painPoints || [],
+                        marketingCopy: pendingQuickStore.marketingCopy || '',
+                        prReply: pendingQuickStore.prReply || '',
+                        aiAdvice: pendingQuickStore.aiAdvice || []
                     },
-                    aiGeneratedCopy: extracted.marketingCopy || '',
-                    aiPrReply: extracted.prReply || '',
+                    aiGeneratedCopy: pendingQuickStore.marketingCopy || '',
+                    aiPrReply: pendingQuickStore.prReply || '',
                     aiAnalyzedAt: new Date().toISOString(),
                     createdAt: new Date().toISOString(),
                     createdBy: (typeof auth !== 'undefined' && auth.currentUser) ? {
@@ -3647,7 +3829,7 @@
                     } : { uid: 'guest', displayName: '一鍵網址匯入' }
                 };
 
-                // 4. 寫入 Firebase Cloud Firestore
+                // 3. 寫入 Firebase Cloud Firestore
                 if (window.db) {
                     console.log("☁️ 正在將新店家寫入 Cloud Firestore [stores] 集合...");
                     const docRef = await window.db.collection('stores').add(newStore);
@@ -3657,25 +3839,36 @@
                     newStore.id = 'quick_' + Date.now();
                 }
 
-                // 5. 更新本地資料庫並即時同步 UI
+                // 4. 更新本地資料庫並即時同步 UI
                 storesData.unshift(newStore);
-                if (inputEl) inputEl.value = '';
+                const quickInput = document.getElementById('quick-url-input');
+                const modalQuickInput = document.getElementById('modal-quick-url-input');
+                if (quickInput) quickInput.value = '';
+                if (modalQuickInput) modalQuickInput.value = '';
+
+                closeQuickConfirmModal();
                 closeAddStoreModal();
 
-                // 6. 重新渲染地圖標記與列表，並自動定位聚焦該店家
+                // 5. 重新渲染地圖標記與列表，並自動平移對準該店家
                 applyFilters(true);
                 selectStore(newStore.id, true);
 
-                alert("🎉 殺手級一鍵分析成功！\n\n" +
+                alert("🎉 商家建檔成功！\n\n" +
                     "📍 標準店名：" + storeName + "\n" +
-                    "🏠 詳細門牌：" + storeAddress + "\n" +
+                    "🏠 確認門牌：" + storeAddress + "\n" +
                     "🎯 料理分類：" + storeCategory + "\n\n" +
-                    "已完成精準坐標定位並同步寫入 Cloud Firestore，情感圓餅圖與深度報告已即時呈現！");
+                    "已完成精準座標對齊並同步寫入 Cloud Firestore，情感圓餅圖與深度報告已即時呈現！");
+
+                pendingQuickStore = null;
+
             } catch (err) {
-                console.error("一鍵分析建檔失敗:", err);
-                alert("一鍵分析失敗：" + err.message + "\n(請確認網路連線、Gemini API 金鑰與 Firestore 寫入權限)");
+                console.error("確認建檔失敗:", err);
+                alert("確認建檔失敗：" + err.message + "\n(請確認網路連線與 Firestore 寫入權限)");
             } finally {
-                setButtonLoading(false);
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = origHtml;
+                }
             }
         }
 
