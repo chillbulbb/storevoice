@@ -22,20 +22,20 @@ StoreVoice 是一款針對餐飲與零售商家打造的現代化分析平台，
 ## 🚀 快速開始
 
 ### 方式一：直接雙擊開啟
-雙擊打開 `StoreVoice.html` 即可直接在瀏覽器中離線運行。
+雙擊打開 `index.html` 即可直接在瀏覽器中離線運行。
 
 ### 方式二：本機 HTTP 伺服器
 ```bash
 # 使用 Python 快速啟動本地伺服器
 python3 -m http.server 8080
 ```
-瀏覽器開啟：`http://localhost:8080/StoreVoice.html`
+瀏覽器開啟：`http://localhost:8080/index.html` (或啟用 GitHub Pages 免費託管)
 
 ---
 
 ## 📁 檔案結構
 
-- `StoreVoice.html` - 完整前端單一頁面應用程式（SPA），整合 Tailwind CSS、Leaflet、Chart.js。
+- `index.html` - 完整前端單一頁面應用程式（SPA），整合 Tailwind CSS、Leaflet、Chart.js。
 - `stores.json` - 示範店家結構化資料庫（包含 7 家桃園代表性餐廳完整資料）。
 - `README.md` - 專案說明文件。
 
