@@ -253,6 +253,32 @@
             class="w-full md:w-1/2 flex flex-col border-r border-gray-200 bg-white h-full relative overflow-hidden">
             <!-- 搜尋與篩選列 -->
             <div class="p-3.5 md:p-4 border-b border-gray-200 bg-gray-50 space-y-2.5 shrink-0">
+                <!-- 🚀 殺手級功能：一鍵貼上 Google Maps 網址或商家資訊自動分析 -->
+                <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-2.5 md:p-3 rounded-2xl shadow-sm text-white">
+                    <div class="flex items-center justify-between mb-1.5 px-0.5">
+                        <div class="flex items-center space-x-1.5 text-xs font-bold tracking-wide">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-300 animate-pulse"></i>
+                            <span>AI 智能一鍵建檔與分析</span>
+                        </div>
+                        <span class="text-[10px] bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full font-medium text-blue-100">支援 Google Maps 網址</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-link absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input id="quick-url-input" type="text"
+                                placeholder="🔗 貼上 Google Maps 網址或輸入店家名稱與地址..."
+                                onkeydown="if(event.key === 'Enter') handleQuickAnalyzeFromUrl()"
+                                class="w-full pl-8 pr-2.5 py-2 text-xs bg-white text-slate-800 placeholder-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-300 shadow-inner font-medium">
+                        </div>
+                        <button id="quick-url-btn" onclick="handleQuickAnalyzeFromUrl()"
+                            title="由 Gemini 自動萃取商家資訊並生成完整分析報告"
+                            class="px-3.5 py-2 min-h-[38px] bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-900 rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1 shrink-0 cursor-pointer">
+                            <span id="quick-url-btn-text">一鍵分析</span>
+                            <i class="fa-solid fa-bolt text-amber-600"></i>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- 搜尋輸入列 -->
                 <div class="relative flex items-center">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 text-gray-400 text-sm"></i>
@@ -1054,6 +1080,36 @@
             <!-- Modal 表單內容 -->
             <form id="add-store-form" onsubmit="handleCreateStore(event)"
                 class="p-5 space-y-3.5 overflow-y-auto flex-1 text-xs">
+                <!-- ✨ Modal 快捷 AI 解析貼上列 -->
+                <div class="p-3 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl border border-blue-200/80 mb-3 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-blue-900 flex items-center space-x-1.5 text-xs">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
+                            <span>AI 智能一鍵解析自動填入與建檔</span>
+                        </span>
+                        <span class="text-[10px] text-blue-600 bg-white/80 px-2 py-0.5 rounded-full font-medium">支援 Google Maps 網址</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-link absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input id="modal-quick-url-input" type="text"
+                                placeholder="🔗 貼上 Google Maps 網址或店家名稱地址..."
+                                onkeydown="if(event.key === 'Enter') { event.preventDefault(); handleQuickAnalyzeFromUrl(true); }"
+                                class="w-full pl-7 pr-2 py-1.5 bg-white border border-blue-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner">
+                        </div>
+                        <button type="button" id="modal-quick-url-btn" onclick="handleQuickAnalyzeFromUrl(true)"
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center space-x-1 shrink-0 cursor-pointer">
+                            <span id="modal-quick-btn-text">一鍵分析</span>
+                            <i class="fa-solid fa-bolt text-amber-300 text-[10px]"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center pt-0.5">
+                        <div class="flex-1 border-t border-blue-200/60"></div>
+                        <span class="px-2 text-[10px] text-slate-400 font-medium">或由下方手動填寫門市欄位</span>
+                        <div class="flex-1 border-t border-blue-200/60"></div>
+                    </div>
+                </div>
+
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">餐廳名稱 <span
                             class="text-rose-500">*</span></label>
@@ -3308,6 +3364,301 @@
                 btnText.innerText = "AI 深度分析";
                 btn.className = "min-h-[44px] text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-3.5 py-2 rounded-xl shadow-sm transition inline-flex items-center space-x-1.5 cursor-pointer active:scale-95";
                 btn.title = "使用 Google Gemini 即時生成深度評論與營運報告";
+            }
+        }
+
+        // =========================================================================
+        // 🚀 殺手級功能：Google Maps 網址 / 商家資訊 Gemini 智慧萃取與深度分析
+        // =========================================================================
+        /**
+         * 🤖 Gemini 智慧商家資訊萃取與深度分析
+         * 同時完成：商家基本資料萃取 (店名、地址、分類、特色、評分) + 評論深度診斷 (情感比率、痛點、IG爆款文案、公關回覆)
+         */
+        async function extractAndAnalyzeStoreWithGemini(rawInput) {
+            const key = localStorage.getItem('STOREVOICE_GEMINI_KEY') || GEMINI_API_KEY;
+            if (!key || key.trim() === '' || key === 'YOUR_GEMINI_API_KEY') {
+                const inputKey = prompt("尚未偵測到 Google Gemini API Key，請輸入您的金鑰以啟動 AI 智能一鍵分析：");
+                if (inputKey && inputKey.trim()) {
+                    localStorage.setItem('STOREVOICE_GEMINI_KEY', inputKey.trim());
+                    return extractAndAnalyzeStoreWithGemini(rawInput);
+                } else {
+                    throw new Error("缺少有效的 Google Gemini API 金鑰");
+                }
+            }
+
+            // 輔助前端提示：嘗試從網址中直接預判店名或經緯度
+            let extraHints = "";
+            try {
+                const decoded = decodeURIComponent(rawInput);
+                const placeMatch = decoded.match(/maps\/place\/([^/@?]+)/);
+                if (placeMatch && placeMatch[1]) {
+                    extraHints += "\n[網址提示] 偵測到店名特徵: " + placeMatch[1].replace(/\+/g, ' ');
+                }
+                const coordMatch = decoded.match(/@([0-9.]+),([0-9.]+)/);
+                if (coordMatch) {
+                    extraHints += "\n[網址提示] 偵測到座標特徵: 緯度 " + coordMatch[1] + ", 經度 " + coordMatch[2];
+                }
+            } catch (e) {}
+
+            const promptText = "你是一位精通台灣餐飲商圈、Google Maps 與社群行銷的資深顧問大師。\n" +
+                "使用者提供了一段 Google Maps 店家網址、分享連結或商家文字資訊：\n" +
+                '"""' + rawInput + '"""\n' +
+                (extraHints ? extraHints + "\n" : "") +
+                "\n" +
+                "請根據這段資訊（若為 Google Maps 短網址或知名店家，請依據你強大的店家知識庫推論出真實店名與詳細地址），完成兩大任務：\n" +
+                "1. 萃取/補全店家的基礎營運資訊。\n" +
+                "2. 同步生成全方位評論大數據深度診斷（情感比例、3大核心客怨痛點、250字 IG 爆款行銷文案、專業公關回覆範本與具體營運建議）。\n\n" +
+                "【重要規範】料理分類 (category) 必須精確落在以下八類之一：\n" +
+                "「燒肉/鍋物」、「中式/江浙」、「在地小吃/米干」、「異國/日料」、「港式茶餐廳」、「異國/餐酒館」、「港點/百匯」、「咖啡/甜點/早午餐」。\n\n" +
+                "請嚴格輸出合法的 JSON 物件（所有文字皆使用繁體中文，且絕對不要包含任何 markdown 語法或 ```json 外框）：\n" +
+                "{\n" +
+                '  "name": "餐廳正式名稱（例如：Postman 郵差先生義式臺菜）",\n' +
+                '  "address": "詳細門市地址（需盡量完整包含縣市、區與路街門牌，例如：桃園市中壢區慈惠一街119號）",\n' +
+                '  "category": "燒肉/鍋物",\n' +
+                '  "signatureDish": "招牌必吃推薦菜色（例如：手工松露義大利麵）",\n' +
+                '  "stars": 4.6,\n' +
+                '  "reviewCount": "1,280",\n' +
+                '  "price": "$$",\n' +
+                '  "targetAudience": "核心客群（例如：朋友聚餐、約會品味）",\n' +
+                '  "sentiment": { "pos": 84, "neu": 11, "neg": 5 },\n' +
+                '  "painPoints": [\n' +
+                '    "尖峰時段等候入座時間較長",\n' +
+                '    "周邊特約停車位較有限",\n' +
+                '    "熱門招牌品項晚間偶提早售罄"\n' +
+                '  ],\n' +
+                '  "marketingCopy": "針對該店招牌特色撰寫的 250 字 IG 爆款行銷文案，包含吸睛標題、3大吸引力亮點、號召行動與熱門 Hashtags",\n' +
+                '  "prReply": "針對核心負評痛點的專業公關回覆範本（150字內，誠懇致歉、具體改善作為與回訪指引）",\n' +
+                '  "aiAdvice": [\n' +
+                '    "建議導入線上候位叫號與分流預約機制，舒緩尖峰等候焦慮。",\n' +
+                '    "針對招牌菜色推廣預定保留機制，並優化備料預測以提高滿意度。"\n' +
+                '  ]\n' +
+                "}";
+
+            const candidateModels = [
+                "gemini-2.5-flash",
+                "gemini-flash-latest",
+                "gemini-2.5-flash-lite",
+                "gemini-1.5-flash-002",
+                "gemini-1.5-flash"
+            ];
+
+            let lastError = null;
+            let resJson = null;
+            let successfulModel = "";
+
+            for (const model of candidateModels) {
+                try {
+                    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key.trim());
+                    console.log("🤖 [Gemini Extraction] 正在呼叫模型 " + model + " 進行智慧萃取與深度診斷...");
+
+                    const response = await fetch(url, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: promptText }] }],
+                            generationConfig: {
+                                response_mime_type: "application/json",
+                                temperature: 0.7
+                            }
+                        })
+                    });
+
+                    if (response.status === 404) {
+                        console.warn("⚠️ [Gemini Extraction] 模型 " + model + " 404，嘗試備援...");
+                        continue;
+                    }
+
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        throw new Error("HTTP " + response.status + ": " + (errData.error?.message || response.statusText));
+                    }
+
+                    resJson = await response.json();
+                    successfulModel = model;
+                    break;
+                } catch (err) {
+                    lastError = err;
+                    if (err.message && err.message.includes("404")) continue;
+                    throw err;
+                }
+            }
+
+            if (!resJson) {
+                throw lastError || new Error("無法連接 Gemini API 模型 (404 Not Found)");
+            }
+
+            console.log("✅ [Gemini Extraction] 由 " + successfulModel + " 成功回傳萃取與診斷結果");
+            const rawOutput = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!rawOutput) {
+                throw new Error("Gemini API 未回傳有效文字");
+            }
+
+            try {
+                const cleanJson = rawOutput.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+                const parsed = JSON.parse(cleanJson);
+                return parsed;
+            } catch (pErr) {
+                console.error("JSON 解析失敗，原始回應:", rawOutput);
+                throw new Error("Gemini 回傳格式非標準 JSON: " + pErr.message);
+            }
+        }
+
+        /**
+         * 🚀 殺手級功能處理器：一鍵貼上 Google Maps 網址或店家名稱自動分析、雲端寫入與定位
+         */
+        async function handleQuickAnalyzeFromUrl(fromModal = false) {
+            const inputEl = document.getElementById(fromModal ? 'modal-quick-url-input' : 'quick-url-input');
+            const rawInput = inputEl ? inputEl.value.trim() : '';
+
+            if (!rawInput) {
+                alert("請先貼上 Google Maps 網址或輸入店家名稱與地址！");
+                if (inputEl) inputEl.focus();
+                return;
+            }
+
+            // UI 狀態切換
+            const mainBtn = document.getElementById('quick-url-btn');
+            const mainText = document.getElementById('quick-url-btn-text');
+            const modalBtn = document.getElementById('modal-quick-url-btn');
+            const modalText = document.getElementById('modal-quick-btn-text');
+
+            const setButtonLoading = (loading) => {
+                if (mainBtn && mainText) {
+                    mainBtn.disabled = loading;
+                    mainText.innerHTML = loading ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析建檔中...' : '一鍵分析';
+                }
+                if (modalBtn && modalText) {
+                    modalBtn.disabled = loading;
+                    modalText.innerHTML = loading ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 建檔中...' : '一鍵分析';
+                }
+            };
+
+            setButtonLoading(true);
+
+            try {
+                console.log("🚀 [Quick Analyze] 開始執行一鍵分析:", rawInput);
+
+                // 1. Gemini 智慧萃取與營運分析
+                const extracted = await extractAndAnalyzeStoreWithGemini(rawInput);
+                console.log("✨ [Quick Analyze] 成功萃取店家資訊與報告:", extracted);
+
+                const storeName = extracted.name || "未知名稱店家";
+                const storeAddress = extracted.address || "桃園市";
+                const storeCategory = extracted.category || "燒肉/鍋物";
+
+                // 2. 智慧座標解析（Google Geocoding > 商圈字典備援）
+                const coords = await resolveStoreCoordinates(storeAddress);
+                console.log("📍 [Quick Analyze] 座標定位結果:", coords);
+
+                // 3. 結構化完整 Store 模型 (含 AI 快取與各項營運對標指標)
+                const newStore = {
+                    name: storeName,
+                    category: storeCategory,
+                    stars: (parseFloat(extracted.stars) || 4.5).toFixed(1),
+                    reviewCount: String(extracted.reviewCount || "1,000"),
+                    address: storeAddress,
+                    lat: coords.lat,
+                    lng: coords.lng,
+                    signatureDish: extracted.signatureDish || "主廚推薦特色料理",
+                    targetAudience: extracted.targetAudience || "家庭聚餐、朋友聚會",
+                    sentiment: extracted.sentiment || { pos: 84, neu: 11, neg: 5 },
+                    radarScores: [4.8, 4.6, 4.7, 4.4, 4.3],
+                    pkStrengths: [
+                        "主打" + (extracted.signatureDish || "私房招牌菜") + "道地現做",
+                        "空間舒適且服務貼心親切",
+                        "交通便利、知名度極高"
+                    ],
+                    pkWeaknesses: extracted.painPoints || [
+                        "尖峰時段候位時間較長",
+                        "周邊停車場較難尋",
+                        "招牌料理偶有提早售罄"
+                    ],
+                    competitors: [
+                        {
+                            name: "同商圈競品店家",
+                            stars: "4.3",
+                            reviews: "1,800",
+                            scoreDiff: "+0.3",
+                            reviewDiff: "+400",
+                            adv: "老字號知名度高客群廣",
+                            disadv: "傳統裝潢無創新精緻亮點"
+                        }
+                    ],
+                    roiGrowth: {
+                        labels: ["基準期 (Baseline)", "第 1 週 (W1)", "第 2 週 (W2)", "第 3 週 (W3)", "第 4 週 (W4)"],
+                        before: [850, 860, 840, 870, 860],
+                        after: [850, 940, 1020, 1100, 1180],
+                        growthRate: "+37.2%",
+                        weeklyLift: "+320 人",
+                        estMonthlyRevenue: "+NT$ 26.8 萬",
+                        insights: "透過 AI 爆款文案精準導流，並針對候位與招牌備料改善，業績顯著提升。"
+                    },
+                    keywords: [
+                        { word: (extracted.signatureDish || "特色招牌").split(' ')[0] || "招牌名點", count: 190 },
+                        { word: "用餐氛圍極佳 (Atmosphere)", count: 150 },
+                        { word: "服務用心 (Service)", count: 120 }
+                    ],
+                    themes: [
+                        { name: "餐點創意與美味 (Food)", count: 310, pos: 280, neu: 20, neg: 10, score: "4.76" },
+                        { name: "空間裝潢氛圍 (Atmosphere)", count: 205, pos: 190, neu: 10, neg: 5, score: "4.72" },
+                        { name: "服務與價格 (Value)", count: 145, pos: 115, neu: 20, neg: 10, score: "4.32" }
+                    ],
+                    recentReviews: [
+                        {
+                            stars: 5,
+                            text: (extracted.signatureDish || "招牌餐點") + " 真的很驚艷！環境乾淨舒服，服務也很細心，下次一定會再來！",
+                            date: "剛剛"
+                        }
+                    ],
+                    aiAdvice: extracted.aiAdvice || [
+                        "建議導入線上候位預約機制，舒緩尖峰排隊人潮。",
+                        "加強社群短影音行銷，主打招牌料理視覺張力。"
+                    ],
+                    geminiAnalysis: {
+                        sentiment: extracted.sentiment || { pos: 84, neu: 11, neg: 5 },
+                        painPoints: extracted.painPoints || [],
+                        marketingCopy: extracted.marketingCopy || '',
+                        prReply: extracted.prReply || '',
+                        aiAdvice: extracted.aiAdvice || []
+                    },
+                    aiGeneratedCopy: extracted.marketingCopy || '',
+                    aiPrReply: extracted.prReply || '',
+                    aiAnalyzedAt: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
+                    createdBy: (typeof auth !== 'undefined' && auth.currentUser) ? {
+                        uid: auth.currentUser.uid,
+                        email: auth.currentUser.email,
+                        displayName: auth.currentUser.displayName || '商家老闆'
+                    } : { uid: 'guest', displayName: '一鍵網址匯入' }
+                };
+
+                // 4. 寫入 Firebase Cloud Firestore
+                if (window.db) {
+                    console.log("☁️ 正在將新店家寫入 Cloud Firestore [stores] 集合...");
+                    const docRef = await window.db.collection('stores').add(newStore);
+                    newStore.id = docRef.id;
+                    console.log("✅ 成功寫入 Cloud Firestore，Document ID: " + docRef.id);
+                } else {
+                    newStore.id = 'quick_' + Date.now();
+                }
+
+                // 5. 更新本地資料庫並即時同步 UI
+                storesData.unshift(newStore);
+                if (inputEl) inputEl.value = '';
+                closeAddStoreModal();
+
+                // 6. 重新渲染地圖標記與列表，並自動定位聚焦該店家
+                applyFilters(true);
+                selectStore(newStore.id, true);
+
+                alert("🎉 殺手級一鍵分析成功！\n" +
+                    "已成功為「" + storeName + "」完成 AI 資訊萃取、座標定位與雲端建檔！\n" +
+                    "情感分析圓餅圖、核心客怨痛點與 IG 爆款文案已即時呈現。");
+            } catch (err) {
+                console.error("一鍵分析建檔失敗:", err);
+                alert("一鍵分析失敗：" + err.message + "\n(請確認網路連線、Gemini API 金鑰與 Firestore 寫入權限)");
+            } finally {
+                setButtonLoading(false);
             }
         }
 
