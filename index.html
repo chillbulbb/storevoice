@@ -3400,20 +3400,23 @@
                 }
             } catch (e) {}
 
-            const promptText = "你是一位精通台灣餐飲商圈、Google Maps 與社群行銷的資深顧問大師。\n" +
-                "使用者提供了一段 Google Maps 店家網址、分享連結或商家文字資訊：\n" +
+            const promptText = "你是一位精通台灣餐飲商圈、Google Maps 與全台門市地址大數據的資深顧問專家。\n" +
+                "使用者提供了一段 Google Maps 店家網址、分享連結或商家名稱/地址文字：\n" +
                 '"""' + rawInput + '"""\n' +
                 (extraHints ? extraHints + "\n" : "") +
                 "\n" +
-                "請根據這段資訊（若為 Google Maps 短網址或知名店家，請依據你強大的店家知識庫推論出真實店名與詳細地址），完成兩大任務：\n" +
-                "1. 萃取/補全店家的基礎營運資訊。\n" +
-                "2. 同步生成全方位評論大數據深度診斷（情感比例、3大核心客怨痛點、250字 IG 爆款行銷文案、專業公關回覆範本與具體營運建議）。\n\n" +
-                "【重要規範】料理分類 (category) 必須精確落在以下八類之一：\n" +
-                "「燒肉/鍋物」、「中式/江浙」、「在地小吃/米干」、「異國/日料」、「港式茶餐廳」、「異國/餐酒館」、「港點/百匯」、「咖啡/甜點/早午餐」。\n\n" +
-                "請嚴格輸出合法的 JSON 物件（所有文字皆使用繁體中文，且絕對不要包含任何 markdown 語法或 ```json 外框）：\n" +
+                "【核心任務與嚴格規範】\n" +
+                "1. 【真實標準店名 (name)】：精準還原該店家的正式營業名稱（例如：「忠貞誠米干」、「相演無煙燒肉 大興店」、「Postman 郵差先生義式臺菜」）。\n" +
+                "2. 【真實詳細門牌地址 (address)】：必須精確還原該店家在台灣真實存在的完整門市門牌地址（嚴格包含：縣市 + 行政區 + 路/街/巷/弄 + 門牌號碼，例如：「桃園市平鎮區忠貞路76號」、「桃園市桃園區大興西路二段30號」、「桃園市中壢區慈惠一街119號」）。絕對不可輸出模糊或僅有行政區的籠統字眼！\n" +
+                "3. 【精準 GPS 坐標 (lat, lng)】：請依據你對該真實地址的地理資訊庫，輸出該門市真實經緯度（台灣本島範圍：緯度 lat 約在 22.0 ~ 25.3，經度 lng 約在 120.0 ~ 122.0，精確至小數點後 4~6 位）。\n" +
+                "4. 【料理分類 (category)】：必須精確屬於以下八類之一：「燒肉/鍋物」、「中式/江浙」、「在地小吃/米干」、「異國/日料」、「港式茶餐廳」、「異國/餐酒館」、「港點/百匯」、「咖啡/甜點/早午餐」。\n" +
+                "5. 【評論深度診斷與社群爆款產出】：同步生成情感比率 (sentiment)、3大核心客怨痛點 (painPoints)、250字 IG 爆款行銷文案 (marketingCopy)、專業公關回覆 (prReply) 與營運改善建議 (aiAdvice)。\n\n" +
+                "請嚴格輸出合法的純 JSON 物件（所有文字皆使用繁體中文，且絕對不要包含任何 markdown 語法或 ```json 外框）：\n" +
                 "{\n" +
-                '  "name": "餐廳正式名稱（例如：Postman 郵差先生義式臺菜）",\n' +
-                '  "address": "詳細門市地址（需盡量完整包含縣市、區與路街門牌，例如：桃園市中壢區慈惠一街119號）",\n' +
+                '  "name": "餐廳正式標準名稱",\n' +
+                '  "address": "詳細完整門牌地址（嚴格包含縣市區路街門牌號）",\n' +
+                '  "lat": 24.9583,\n' +
+                '  "lng": 121.2240,\n' +
                 '  "category": "燒肉/鍋物",\n' +
                 '  "signatureDish": "招牌必吃推薦菜色（例如：手工松露義大利麵）",\n' +
                 '  "stars": 4.6,\n' +
@@ -3516,6 +3519,18 @@
                 return;
             }
 
+            // 智慧短網址檢查：若使用者貼入純短網址（無店名中文），友善提示補齊店名
+            let effectiveInput = rawInput;
+            const isPureShortUrl = /^(https?:\/\/)?(maps\.app\.goo\.gl|goo\.gl\/maps)\/[A-Za-z0-9_-]+\/?$/i.test(rawInput);
+            if (isPureShortUrl) {
+                const storeHint = prompt("💡 偵測到 Google Maps 分享短網址！\n請補充輸入「餐廳名稱」（例如：忠貞誠、相演燒肉、太二酸菜魚），AI 將自動為您精準鎖定門牌地址與全套營運分析：");
+                if (storeHint && storeHint.trim()) {
+                    effectiveInput = storeHint.trim() + " (" + rawInput + ")";
+                } else {
+                    return;
+                }
+            }
+
             // UI 狀態切換
             const mainBtn = document.getElementById('quick-url-btn');
             const mainText = document.getElementById('quick-url-btn-text');
@@ -3536,19 +3551,19 @@
             setButtonLoading(true);
 
             try {
-                console.log("🚀 [Quick Analyze] 開始執行一鍵分析:", rawInput);
+                console.log("🚀 [Quick Analyze] 開始執行一鍵分析:", effectiveInput);
 
-                // 1. Gemini 智慧萃取與營運分析
-                const extracted = await extractAndAnalyzeStoreWithGemini(rawInput);
-                console.log("✨ [Quick Analyze] 成功萃取店家資訊與報告:", extracted);
+                // 1. Gemini 智慧萃取門市詳細門牌地址與深度營運分析
+                const extracted = await extractAndAnalyzeStoreWithGemini(effectiveInput);
+                console.log("✨ [Quick Analyze] 成功萃取真實店家門牌資訊與報告:", extracted);
 
                 const storeName = extracted.name || "未知名稱店家";
                 const storeAddress = extracted.address || "桃園市";
                 const storeCategory = extracted.category || "燒肉/鍋物";
 
-                // 2. 智慧座標解析（Google Geocoding > 商圈字典備援）
-                const coords = await resolveStoreCoordinates(storeAddress);
-                console.log("📍 [Quick Analyze] 座標定位結果:", coords);
+                // 2. 智慧座標解析（Google Geocoding > Gemini 門市高精度坐標 > 商圈路街字典備援）
+                const coords = await resolveStoreCoordinates(storeAddress, { lat: extracted.lat, lng: extracted.lng });
+                console.log("📍 [Quick Analyze] 精準座標定位結果:", coords);
 
                 // 3. 結構化完整 Store 模型 (含 AI 快取與各項營運對標指標)
                 const newStore = {
@@ -3651,9 +3666,11 @@
                 applyFilters(true);
                 selectStore(newStore.id, true);
 
-                alert("🎉 殺手級一鍵分析成功！\n" +
-                    "已成功為「" + storeName + "」完成 AI 資訊萃取、座標定位與雲端建檔！\n" +
-                    "情感分析圓餅圖、核心客怨痛點與 IG 爆款文案已即時呈現。");
+                alert("🎉 殺手級一鍵分析成功！\n\n" +
+                    "📍 標準店名：" + storeName + "\n" +
+                    "🏠 詳細門牌：" + storeAddress + "\n" +
+                    "🎯 料理分類：" + storeCategory + "\n\n" +
+                    "已完成精準坐標定位並同步寫入 Cloud Firestore，情感圓餅圖與深度報告已即時呈現！");
             } catch (err) {
                 console.error("一鍵分析建檔失敗:", err);
                 alert("一鍵分析失敗：" + err.message + "\n(請確認網路連線、Gemini API 金鑰與 Firestore 寫入權限)");
@@ -3712,10 +3729,29 @@
 
         /**
          * 2. 安全備援機制 (Fallback Mock Geocoding Engine)
-         * 根據地址關鍵字（行政區/主要商圈）自動對應中心座標，並加入微幅防重疊偏移
+         * 根據地址關鍵字（精細路街 / 主要商圈 / 行政區）自動對應精確中心座標，並加入微幅防重疊偏移
          */
         function geocodeAddress(address) {
             const districtCoords = [
+                // 精確熱門美食街區 / 商圈核心
+                { keyword: '前龍街', lat: 24.9287, lng: 121.2508 },     // 龍岡忠貞市場前龍街
+                { keyword: '龍平路', lat: 24.9285, lng: 121.2515 },     // 忠貞米干龍平路
+                { keyword: '忠貞路', lat: 24.9395, lng: 121.2335 },     // 平鎮忠貞商圈
+                { keyword: '慈惠一街', lat: 24.9608, lng: 121.2255 },   // 中壢SOGO/慈惠文青商圈
+                { keyword: '九和', lat: 24.9625, lng: 121.2230 },       // 中壢SOGO九和商圈
+                { keyword: '大興西路', lat: 25.0131, lng: 121.2985 },   // 桃園藝文大興西路美食大道
+                { keyword: '新明路', lat: 24.9592, lng: 121.2152 },     // 中壢觀光夜市新明路
+                { keyword: '實踐路', lat: 24.9547, lng: 121.2405 },     // 中原夜市實踐路商圈
+                { keyword: '日新路', lat: 24.9555, lng: 121.2415 },     // 中原大學日新路
+                { keyword: '寶山街', lat: 25.0110, lng: 121.3210 },     // 桃園大有寶山商圈
+                { keyword: '大有路', lat: 25.0135, lng: 121.3195 },     // 桃園大有商圈
+                { keyword: '南平路', lat: 25.0180, lng: 121.2995 },     // 藝文特區南平路美食街
+                { keyword: '光明路', lat: 25.0450, lng: 121.2910 },     // 蘆竹南崁光明路
+                { keyword: '春日路', lat: 25.0085, lng: 121.3115 },     // 桃園春日路
+                { keyword: '復興路', lat: 24.9895, lng: 121.3135 },     // 桃園站前復興路
+                { keyword: '華泰', lat: 25.0135, lng: 121.2140 },       // 青埔華泰名品城
+
+                // 主要行政區商圈核心
                 { keyword: '中壢', lat: 24.9583, lng: 121.2240 },      // 中壢市區 / 監理站商圈
                 { keyword: '龍岡', lat: 24.9285, lng: 121.2505 },      // 龍岡忠貞商圈
                 { keyword: '藝文', lat: 25.0155, lng: 121.2990 },      // 桃園藝文特區
@@ -3737,9 +3773,9 @@
             const baseLat = matched ? matched.lat : 24.9750; // 預設桃園市核心
             const baseLng = matched ? matched.lng : 121.2750;
 
-            // 加入 ±0.0025 (~250 公尺) 微幅散佈偏移，避免多間同區店家重疊
-            const jitterLat = (Math.random() - 0.5) * 0.005;
-            const jitterLng = (Math.random() - 0.5) * 0.005;
+            // 加入 ±0.0015 (~150 公尺) 微幅散佈偏移，避免多間同區店家重疊
+            const jitterLat = (Math.random() - 0.5) * 0.003;
+            const jitterLng = (Math.random() - 0.5) * 0.003;
 
             return {
                 lat: parseFloat((baseLat + jitterLat).toFixed(4)),
@@ -3749,9 +3785,9 @@
         }
 
         /**
-         * 3. 整合型座標解析器 (手動 > Google Maps API > 商圈安全備援)
+         * 3. 整合型座標解析器 (手動 > Google Maps API > Gemini 門市高精度坐標 > 商圈安全備援)
          */
-        async function resolveStoreCoordinates(address) {
+        async function resolveStoreCoordinates(address, fallbackCoords = null) {
             // ① 優先檢驗老闆是否在進階選單中手動指定座標
             const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
             const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
@@ -3760,13 +3796,27 @@
                 return { lat: manualLat, lng: manualLng, source: 'manual' };
             }
 
-            // ② 嘗試透過 Google Maps Geocoding API 查詢
+            // ② 嘗試透過 Google Maps Geocoding API 查詢真實地址
             const googleCoords = await fetchGoogleGeocoding(address);
             if (googleCoords) {
                 return googleCoords;
             }
 
-            // ③ 安全退回商圈中心對應機制 (保證永不卡住)
+            // ③ 採納 Gemini 智慧推論之門市真實高精度坐標 (合法台灣坐標檢驗)
+            if (fallbackCoords && typeof fallbackCoords === 'object') {
+                const fLat = parseFloat(fallbackCoords.lat);
+                const fLng = parseFloat(fallbackCoords.lng);
+                if (!isNaN(fLat) && !isNaN(fLng) && fLat > 21.8 && fLat < 25.5 && fLng > 119.8 && fLng < 122.2) {
+                    console.log("📍 [Geocoding] 成功採用 Gemini 智慧推論之門市真實高精度坐標：[" + fLat + ", " + fLng + "]");
+                    return {
+                        lat: parseFloat(fLat.toFixed(4)),
+                        lng: parseFloat(fLng.toFixed(4)),
+                        source: 'gemini_high_precision'
+                    };
+                }
+            }
+
+            // ④ 安全退回商圈/路名中心對應機制 (保證永不卡住)
             const fallback = geocodeAddress(address);
             console.log("📍 [Geocoding] 已自動退回商圈字典對應坐標：[" + fallback.lat + ", " + fallback.lng + "]");
             return fallback;
