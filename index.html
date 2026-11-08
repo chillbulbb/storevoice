@@ -373,11 +373,19 @@
                                 評價)</span>
                         </div>
                     </div>
-                    <button id="export-report-btn" onclick="openExportModal()"
-                        class="min-h-[44px] text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition font-medium shadow-sm inline-flex items-center space-x-2 shrink-0 cursor-pointer">
-                        <i class="fa-solid fa-file-export text-blue-200"></i>
-                        <span>匯出簡報</span>
-                    </button>
+                    <div class="flex items-center space-x-2 shrink-0">
+                        <button id="delete-store-btn" onclick="openDeleteStoreModal()" title="刪除此店家並記錄原因"
+                            class="hidden min-h-[44px] text-xs bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 px-3.5 py-2.5 rounded-xl transition font-medium shadow-sm items-center space-x-1.5 cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-trash-can text-rose-500"></i>
+                            <span class="hidden sm:inline">刪除此店家</span>
+                            <span class="sm:hidden">刪除</span>
+                        </button>
+                        <button id="export-report-btn" onclick="openExportModal()"
+                            class="min-h-[44px] text-xs bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition font-medium shadow-sm inline-flex items-center space-x-2 cursor-pointer active:scale-95">
+                            <i class="fa-solid fa-file-export text-blue-200"></i>
+                            <span>匯出簡報</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- 頂部分頁切換 (仿 Google Maps 極簡文字導覽列) -->
@@ -924,6 +932,85 @@
             </button>
         </nav>
     </main>
+
+    <!-- 刪除店家與稽核紀錄確認 Modal -->
+    <div id="delete-store-modal" onclick="onDeleteStoreBackdropClick(event)"
+        class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
+        <div id="delete-store-modal-panel"
+            class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200">
+            <!-- Modal 頂部 Header (警示紅) -->
+            <div class="px-5 py-4 bg-rose-600 text-white flex justify-between items-center">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                        <i class="fa-solid fa-triangle-exclamation text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base leading-tight">確認刪除店家</h3>
+                        <p class="text-[11px] text-rose-100 leading-tight">雲端資料庫將即時下架並留存稽核紀錄</p>
+                    </div>
+                </div>
+                <button onclick="closeDeleteStoreModal()"
+                    class="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal 表單 -->
+            <form id="delete-store-form" onsubmit="handleConfirmDeleteStore(event)" class="p-5 space-y-4 text-xs">
+                <!-- 店家名稱與地址提示卡 -->
+                <div class="p-3 bg-rose-50 border border-rose-100 rounded-xl space-y-1">
+                    <div class="text-[11px] text-rose-600 font-semibold flex items-center">
+                        <i class="fa-solid fa-circle-exclamation mr-1.5"></i>
+                        <span>即將刪除以下店家：</span>
+                    </div>
+                    <div id="delete-modal-store-name" class="text-sm font-bold text-slate-800">店家名稱</div>
+                    <div id="delete-modal-store-addr" class="text-[11px] text-slate-500 truncate">門市地址</div>
+                </div>
+
+                <!-- 刪除原因下拉選單 -->
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        請選擇刪除原因 <span class="text-rose-500">*</span>
+                    </label>
+                    <select id="delete-reason-select" required
+                        class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none bg-white font-medium text-slate-700">
+                        <option value="已結束營業 / 關店">已結束營業 / 關店</option>
+                        <option value="遷移新地址">遷移新地址</option>
+                        <option value="頂讓換人經營">頂讓換人經營</option>
+                        <option value="其他原因">其他原因</option>
+                    </select>
+                </div>
+
+                <!-- 補充說明（選填） -->
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">
+                        具體原因補充說明（選填）
+                    </label>
+                    <textarea id="delete-reason-detail" rows="2" placeholder="請補充具體關店、遷移或異動說明，將寫入稽核紀錄..."
+                        class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none resize-none"></textarea>
+                </div>
+
+                <!-- 稽核說明 -->
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 flex items-start space-x-2">
+                    <i class="fa-solid fa-clipboard-check text-slate-400 mt-0.5 shrink-0"></i>
+                    <span>此操作將寫入 <code class="bg-slate-200/80 px-1 py-0.5 rounded text-[10px] text-slate-700 font-mono">store_deletion_logs</code> 雲端集合以供日後審查。</span>
+                </div>
+
+                <!-- 按鈕區 -->
+                <div class="pt-2 flex items-center justify-end space-x-2.5">
+                    <button type="button" onclick="closeDeleteStoreModal()"
+                        class="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 font-medium transition">
+                        取消
+                    </button>
+                    <button id="confirm-delete-btn" type="submit"
+                        class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition shadow-sm flex items-center space-x-1.5 active:scale-95">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
+                        <span>確認刪除店家</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- 老闆新增餐廳 Modal (寫入 Firebase Cloud Firestore) -->
     <div id="add-store-modal" onclick="onAddStoreBackdropClick(event)"
@@ -2805,6 +2892,11 @@
                         addStoreBtn.classList.remove('hidden');
                         addStoreBtn.classList.add('inline-flex');
                     }
+                    const deleteStoreBtn = document.getElementById('delete-store-btn');
+                    if (deleteStoreBtn) {
+                        deleteStoreBtn.classList.remove('hidden');
+                        deleteStoreBtn.classList.add('inline-flex');
+                    }
                 } else {
                     if (loginBtn) loginBtn.classList.remove('hidden');
                     if (userProfile) {
@@ -2815,8 +2907,130 @@
                         addStoreBtn.classList.add('hidden');
                         addStoreBtn.classList.remove('inline-flex');
                     }
+                    const deleteStoreBtn = document.getElementById('delete-store-btn');
+                    if (deleteStoreBtn) {
+                        deleteStoreBtn.classList.add('hidden');
+                        deleteStoreBtn.classList.remove('inline-flex');
+                    }
                 }
             });
+        }
+
+        // 刪除店家與原因填寫 Modal 互動控制
+        function openDeleteStoreModal() {
+            const currentStore = storesData.find(s => s.id === activeStoreId);
+            if (!currentStore) {
+                alert("目前未選取任何店家");
+                return;
+            }
+
+            const nameEl = document.getElementById('delete-modal-store-name');
+            const addrEl = document.getElementById('delete-modal-store-addr');
+            if (nameEl) nameEl.innerText = currentStore.name;
+            if (addrEl) addrEl.innerText = currentStore.address;
+
+            const selectEl = document.getElementById('delete-reason-select');
+            if (selectEl) selectEl.selectedIndex = 0;
+            const detailEl = document.getElementById('delete-reason-detail');
+            if (detailEl) detailEl.value = '';
+
+            const modal = document.getElementById('delete-store-modal');
+            const panel = document.getElementById('delete-store-modal-panel');
+            if (modal && panel) {
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                panel.classList.remove('scale-95');
+                panel.classList.add('scale-100');
+            }
+        }
+
+        function closeDeleteStoreModal() {
+            const modal = document.getElementById('delete-store-modal');
+            const panel = document.getElementById('delete-store-modal-panel');
+            if (modal && panel) {
+                modal.classList.add('opacity-0', 'pointer-events-none');
+                panel.classList.remove('scale-100');
+                panel.classList.add('scale-95');
+            }
+        }
+
+        function onDeleteStoreBackdropClick(event) {
+            if (event.target.id === 'delete-store-modal') {
+                closeDeleteStoreModal();
+            }
+        }
+
+        // 確認刪除店家：寫入 store_deletion_logs 稽核記錄並從 stores 集合刪除
+        async function handleConfirmDeleteStore(event) {
+            event.preventDefault();
+            const btn = document.getElementById('confirm-delete-btn');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i><span>刪除處理中...</span>';
+
+            const currentStore = storesData.find(s => s.id === activeStoreId);
+            if (!currentStore) {
+                alert("找不到欲刪除的店家資料");
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                return;
+            }
+
+            const selectReason = document.getElementById('delete-reason-select').value;
+            const detailReason = document.getElementById('delete-reason-detail').value.trim();
+            const finalReason = detailReason ? (selectReason + "（備註：" + detailReason + "）") : selectReason;
+
+            const currentUser = window.auth ? window.auth.currentUser : null;
+            const deletedByInfo = {
+                uid: currentUser ? currentUser.uid : 'anonymous',
+                displayName: currentUser ? (currentUser.displayName || '店家老闆') : '店家老闆',
+                email: currentUser ? (currentUser.email || '未提供') : '未提供'
+            };
+
+            try {
+                if (window.db) {
+                    // ① 寫入刪除稽核記錄至 store_deletion_logs
+                    console.log("📝 正在寫入 store_deletion_logs 雲端稽核紀錄...");
+                    await window.db.collection('store_deletion_logs').add({
+                        storeId: currentStore.id,
+                        storeName: currentStore.name,
+                        category: currentStore.category || '',
+                        address: currentStore.address || '',
+                        deleteReason: finalReason,
+                        deletedAt: new Date().toISOString(),
+                        deletedBy: deletedByInfo
+                    });
+
+                    // ② 從 Firestore 的 stores 集合刪除該文件
+                    console.log("🗑️ 正在從 stores 集合刪除店家文件 [ID: " + currentStore.id + "]...");
+                    await window.db.collection('stores').doc(currentStore.id).delete();
+                    console.log("✅ Firestore 雲端店家已成功刪除");
+                } else {
+                    console.warn("⚠️ 離線環境，僅從本地資料庫移除");
+                }
+
+                const deletedStoreName = currentStore.name;
+                // ③ 從本地 storesData 移除
+                storesData = storesData.filter(s => s.id !== currentStore.id);
+                closeDeleteStoreModal();
+
+                // ④ 重整畫面與地圖
+                if (storesData.length > 0) {
+                    activeStoreId = storesData[0].id;
+                } else {
+                    activeStoreId = null;
+                }
+
+                applyFilters(true);
+                updateDataSourceBadge('Firestore 雲端 (' + storesData.length + ' 家)', true);
+
+                alert("🗑️ 店家「" + deletedStoreName + "」已成功刪除！\n刪除原因「" + selectReason + "」已留存至 store_deletion_logs 雲端稽核資料庫。");
+            } catch (err) {
+                console.error("刪除店家失敗:", err);
+                alert("刪除失敗：" + err.message + "\n(請檢查 Firebase 控制台 Firestore 規則是否允許寫入 store_deletion_logs 與刪除 stores)");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
         }
 
         // 新增餐廳 Modal 互動控制
@@ -2843,6 +3057,7 @@
         function onAddStoreBackdropClick(event) {
             if (event.target.id === 'add-store-modal') {
                 closeAddStoreModal();
+                closeDeleteStoreModal();
             }
         }
 
