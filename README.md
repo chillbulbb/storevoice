@@ -38,3 +38,4 @@ python3 -m http.server 8080
 - `StoreVoice.html` - 完整前端單一頁面應用程式（SPA），整合 Tailwind CSS、Leaflet、Chart.js。
 - `stores.json` - 示範店家結構化資料庫（包含 7 家桃園代表性餐廳完整資料）。
 - `README.md` - 專案說明文件。
+
