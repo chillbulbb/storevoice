@@ -1127,9 +1127,16 @@
                     </div>
                 </div>
 
+                <!-- 座標解析狀態提示 -->
+                <div id="confirm-coords-status"
+                    class="p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800">
+                    <i id="confirm-coords-icon" class="fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs"></i>
+                    <span id="confirm-coords-status-text">已由 Google Maps 網址直取精準 GPS 座標</span>
+                </div>
+
                 <div class="p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-800 flex items-start space-x-2">
                     <i class="fa-solid fa-circle-check text-amber-600 mt-0.5 shrink-0"></i>
-                    <span>確認無誤後，系統將依最終門牌進行精準 Geocoding 定位、同步寫入雲端並呈現全套 AI 分析報告。</span>
+                    <span>確認無誤後，系統將完成精準定位、同步寫入雲端並即時呈現全套 AI 分析報告。</span>
                 </div>
 
                 <!-- 按鈕區 -->
@@ -3645,6 +3652,12 @@
                 return;
             }
 
+            // 🎯 核心優先解析：直接透過 Regex 從網址中擷取 @lat,lng 精確座標
+            const urlExactCoords = extractCoordinatesFromUrl(rawInput);
+            if (urlExactCoords) {
+                console.log("🎯 [Quick Analyze] 成功直接從 Google Maps 網址擷取精確座標:", urlExactCoords);
+            }
+
             // 智慧短網址檢查：若使用者貼入純短網址（無店名中文），友善提示補齊店名
             let effectiveInput = rawInput;
             const isPureShortUrl = /^(https?:\/\/)?(maps\.app\.goo\.gl|goo\.gl\/maps)\/[A-Za-z0-9_-]+\/?$/i.test(rawInput);
@@ -3683,8 +3696,10 @@
                 const extracted = await extractAndAnalyzeStoreWithGemini(effectiveInput);
                 console.log("✨ [Quick Analyze] 成功萃取店家門牌資訊與報告:", extracted);
 
-                // 2. 暫存至記憶體
+                // 2. 暫存至記憶體 (包含網址直取的最高優先精確座標)
                 pendingQuickStore = extracted;
+                pendingQuickStore.urlCoords = urlExactCoords;
+                pendingQuickStore.rawInput = rawInput;
 
                 // 3. 自動反填至「預覽確認與微調視窗」
                 const nameInput = document.getElementById('confirm-store-name');
@@ -3699,6 +3714,22 @@
                     catInput.value = validOpts.includes(extracted.category) ? extracted.category : '燒肉/鍋物';
                 }
                 if (sigInput) sigInput.value = extracted.signatureDish || '';
+
+                // 更新座標狀態指示列
+                const coordsStatusEl = document.getElementById('confirm-coords-status');
+                const coordsIconEl = document.getElementById('confirm-coords-icon');
+                const coordsTextEl = document.getElementById('confirm-coords-status-text');
+                if (coordsStatusEl && coordsTextEl) {
+                    if (urlExactCoords) {
+                        coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800";
+                        if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
+                        coordsTextEl.innerHTML = "🎯 <b>已由 Google Maps 網址直取精準 GPS 座標</b> (" + urlExactCoords.lat + ", " + urlExactCoords.lng + ")，將直接定位，100% 精準對齊！";
+                    } else {
+                        coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-slate-50 border-slate-200 text-slate-600";
+                        if (coordsIconEl) coordsIconEl.className = "fa-solid fa-map-pin text-slate-400 shrink-0 text-xs";
+                        coordsTextEl.innerText = "ℹ️ 網址未帶座標，將以門市詳細地址進行智慧 Geocoding 定位。";
+                    }
+                }
 
                 // 4. 彈出確認小視窗供老闆檢視與微調門牌
                 openQuickConfirmModal();
@@ -3738,13 +3769,14 @@
             }
 
             try {
-                // 1. 精準 Geocoding 座標定位：
-                // 若老闆手動修改過門牌地址，則不採用 Gemini 的原預估坐標，而是讓 Geocoding 依最新門牌重新抓取！
+                // 1. 精準座標定位優先管線：
+                // 優先順序：網址直接萃取的 GPS 座標 (@lat,lng) > Google Geocoding API > Gemini 門市高精度坐標 > 商圈字典備援
                 const addressModified = (storeAddress !== pendingQuickStore.address);
+                const urlCoords = pendingQuickStore.urlCoords || extractCoordinatesFromUrl(pendingQuickStore.rawInput);
                 const referenceCoords = addressModified ? null : { lat: pendingQuickStore.lat, lng: pendingQuickStore.lng };
 
-                console.log("📍 [Final Save] 正在進行精準座標換算，地址:", storeAddress, "是否微調過:", addressModified);
-                const coords = await resolveStoreCoordinates(storeAddress, referenceCoords);
+                console.log("📍 [Final Save] 正在進行精準座標換算，地址:", storeAddress, "網址直取坐標:", urlCoords);
+                const coords = await resolveStoreCoordinates(storeAddress, referenceCoords, urlCoords);
                 console.log("📍 [Final Save] 最終精準座標:", coords);
 
                 // 2. 結構化完整 Store 模型 (保留 Gemini 深度分析快取)
@@ -3853,10 +3885,15 @@
                 applyFilters(true);
                 selectStore(newStore.id, true);
 
+                const coordsSourceText = (coords.source === 'url_exact')
+                    ? "🎯 Google Maps 網址直取 (100% 精準對齊)"
+                    : (coords.source === 'google' ? "🌐 Google Geocoding 門牌解析" : "📍 智慧門牌路街字典");
+
                 alert("🎉 商家建檔成功！\n\n" +
                     "📍 標準店名：" + storeName + "\n" +
                     "🏠 確認門牌：" + storeAddress + "\n" +
-                    "🎯 料理分類：" + storeCategory + "\n\n" +
+                    "🎯 料理分類：" + storeCategory + "\n" +
+                    "📌 定位方式：" + coordsSourceText + " [" + coords.lat + ", " + coords.lng + "]\n\n" +
                     "已完成精準座標對齊並同步寫入 Cloud Firestore，情感圓餅圖與深度報告已即時呈現！");
 
                 pendingQuickStore = null;
@@ -3877,6 +3914,49 @@
         // 欲啟用精準門牌自動換算，請直接在此填入您的 Google Maps API Key：
         // =========================================================================
         const GOOGLE_MAPS_API_KEY = ""; // 例如: "AIzaSy..."
+
+        /**
+         * 🎯 Google Maps 網址座標直取萃取器 (URL Coordinate Extraction)
+         * 支援 @lat,lng、!3dlat!4dlng、?q=lat,lng、&ll=lat,lng、query=lat,lng 等全格式
+         */
+        function extractCoordinatesFromUrl(text) {
+            if (!text || typeof text !== 'string') return null;
+
+            // ① 標準 Google Maps @lat,lng 格式 (例如: @24.9589916,121.2174061,17z)
+            const atMatch = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (atMatch) {
+                const lat = parseFloat(atMatch[1]);
+                const lng = parseFloat(atMatch[2]);
+                if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    console.log("🎯 [URL Coords] 成功從 @ 格式擷取精確座標:", lat, lng);
+                    return { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)), source: 'url_exact' };
+                }
+            }
+
+            // ② Google Maps place data 參數 !3dlat!4dlng (例如: !3d24.9589916!4d121.2174061)
+            const dataMatch = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+            if (dataMatch) {
+                const lat = parseFloat(dataMatch[1]);
+                const lng = parseFloat(dataMatch[2]);
+                if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    console.log("🎯 [URL Coords] 成功從 !3d!4d 格式擷取精確座標:", lat, lng);
+                    return { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)), source: 'url_exact' };
+                }
+            }
+
+            // ③ 查詢與搜尋參數 ?q=lat,lng 或 &ll=lat,lng 或 query=lat,lng
+            const queryMatch = text.match(/[?&](?:q|ll|center|query)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (queryMatch) {
+                const lat = parseFloat(queryMatch[1]);
+                const lng = parseFloat(queryMatch[2]);
+                if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    console.log("🎯 [URL Coords] 成功從 query 參數擷取精確座標:", lat, lng);
+                    return { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)), source: 'url_exact' };
+                }
+            }
+
+            return null;
+        }
 
         /**
          * 1. Google Maps Geocoding API 非同步呼叫器
@@ -3978,9 +4058,30 @@
         }
 
         /**
-         * 3. 整合型座標解析器 (手動 > Google Maps API > Gemini 門市高精度坐標 > 商圈安全備援)
+         * 3. 整合型座標解析器 (網址座標直取 > 手動自訂 > Google Maps API > Gemini 門市高精度坐標 > 商圈安全備援)
          */
-        async function resolveStoreCoordinates(address, fallbackCoords = null) {
+        async function resolveStoreCoordinates(address, fallbackCoords = null, urlCoords = null) {
+            // ⓪ 【最最高優先級】：若網址直接帶有精確座標 (@lat,lng)，直接採用並跳過文字 Geocoding
+            if (urlCoords && typeof urlCoords === 'object') {
+                const uLat = parseFloat(urlCoords.lat);
+                const uLng = parseFloat(urlCoords.lng);
+                if (!isNaN(uLat) && !isNaN(uLng) && uLat >= -90 && uLat <= 90 && uLng >= -180 && uLng <= 180) {
+                    console.log("🎯 [Geocoding] 優先採用 Google Maps 網址直取精準座標：[" + uLat + ", " + uLng + "]，跳過文字 Geocoding");
+                    return {
+                        lat: parseFloat(uLat.toFixed(6)),
+                        lng: parseFloat(uLng.toFixed(6)),
+                        source: 'url_exact'
+                    };
+                }
+            }
+
+            // 亦檢查 address 字串中是否本身就帶有 Google Maps 座標網址
+            const directFromAddress = extractCoordinatesFromUrl(address);
+            if (directFromAddress) {
+                console.log("🎯 [Geocoding] 從地址字串中直取到 Google Maps 精準座標:", directFromAddress);
+                return directFromAddress;
+            }
+
             // ① 優先檢驗老闆是否在進階選單中手動指定座標
             const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
             const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
