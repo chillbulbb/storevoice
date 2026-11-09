@@ -1130,9 +1130,9 @@
                             門市詳細地址 <span class="text-rose-500">*</span>
                         </label>
                         <button type="button" onclick="startMapPicker('quick-confirm')"
-                            class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-100 transition">
+                            class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition shadow-xs active:scale-95">
                             <i class="fa-solid fa-location-crosshairs text-indigo-500"></i>
-                            <span>在地圖上選點</span>
+                            <span>在地圖上標點</span>
                         </button>
                     </div>
                     <div class="relative">
@@ -1143,7 +1143,7 @@
                     </div>
                     <p class="text-[10px] text-slate-400 mt-1 flex items-center">
                         <i class="fa-solid fa-lightbulb text-amber-500 mr-1 shrink-0"></i>
-                        <span>若地址定位有落差，可直接在地圖上點擊正確位置來精準對齊。</span>
+                        <span>若地址定位有落差，可直接點擊「在地圖上標點」來精準對齊。</span>
                     </p>
                 </div>
 
@@ -1171,9 +1171,12 @@
 
                 <!-- 座標解析狀態提示 -->
                 <div id="confirm-coords-status"
-                    class="p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800">
-                    <i id="confirm-coords-icon" class="fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs"></i>
-                    <span id="confirm-coords-status-text">已由 Google Maps 網址直取精準 GPS 座標</span>
+                    class="p-2.5 rounded-xl border text-[11px] flex items-center justify-between bg-emerald-50 border-emerald-200/80 text-emerald-800">
+                    <div class="flex items-center space-x-2">
+                        <i id="confirm-coords-icon" class="fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs"></i>
+                        <span id="confirm-coords-status-text">已由 Google Maps 網址直取精準 GPS 座標</span>
+                    </div>
+                    <span id="confirm-coords-val" class="font-mono text-[10px] bg-white/90 px-2 py-0.5 rounded border border-emerald-200/80 font-bold shrink-0 ml-1"></span>
                 </div>
 
                 <div class="p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-800 flex items-start space-x-2">
@@ -2511,6 +2514,9 @@
             bindSearchEvents();
             initAuthListener();
             await loadStoresData();
+            if (Array.isArray(storesData)) {
+                storesData.forEach(s => { if (s.category) ensureCategoryPill(s.category); });
+            }
             applyFilters(false);
 
             // 監聽視窗尺寸變更，避免 Leaflet 出現灰色區塊
@@ -2594,6 +2600,7 @@
                 zoomControl: true,
                 attributionControl: false
             }).setView([24.9750, 121.2750], 12);
+            window.map = map; // 確保全域掛載，讓選點與標記能隨時訪問
 
             const googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
@@ -2628,54 +2635,8 @@
                 if (map) map.invalidateSize();
             }, ms));
 
-            // 🎯 結合地圖互動點擊選點機制：在地圖上任意點擊時，即時產生預覽 Pin 點並自動填入表單
-            map.on('click', async (e) => {
-                const { lat, lng } = e.latlng;
-                const roundedLat = parseFloat(lat.toFixed(6));
-                const roundedLng = parseFloat(lng.toFixed(6));
-
-                // 即時在地圖上更新/產生預覽 Pin 點
-                updateMapPreviewPin(roundedLat, roundedLng, "📍 選取位置");
-
-                let resolvedAddress = `點擊位置 (${roundedLat}, ${roundedLng})`;
-                
-                // 優先調用 Google Maps 官方 Geocoder 進行 Reverse Geocoding 反查門牌
-                if (typeof reverseGeocodeWithGoogle === 'function') {
-                    const googleAddr = await reverseGeocodeWithGoogle(roundedLat, roundedLng);
-                    if (googleAddr) {
-                        resolvedAddress = googleAddr;
-                    }
-                }
-
-                // 🎯 若處於選點模式，直接將精確座標填入當前表單並自動退出選點模式
-                if (window.mapPickerActive) {
-                    handleMapPickerSelected(roundedLat, roundedLng, resolvedAddress);
-                    return;
-                }
-
-                const encodedAddress = encodeURIComponent(resolvedAddress);
-
-                const popupContent = `
-                    <div class="text-xs space-y-2 p-1 min-w-[210px]">
-                        <div class="flex items-center space-x-1.5 text-blue-600 font-bold">
-                            <i class="fa-solid fa-location-dot"></i>
-                            <span>地圖互動選點</span>
-                        </div>
-                        <p class="text-[11px] text-slate-700 leading-tight font-medium">${resolvedAddress}</p>
-                        <div class="text-[10px] text-slate-400 font-mono">GPS: ${roundedLat}, ${roundedLng}</div>
-                        <button onclick="triggerAddStoreFromMap(${roundedLat}, ${roundedLng}, '${encodedAddress}')" 
-                                class="w-full mt-1.5 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer">
-                            <i class="fa-solid fa-plus text-[10px]"></i>
-                            <span>在此位置新增餐廳</span>
-                        </button>
-                    </div>
-                `;
-
-                L.popup()
-                    .setLatLng(e.latlng)
-                    .setContent(popupContent)
-                    .openOn(map);
-            });
+            // 🎯 綁定全域地圖點擊監聽器（支援選點回填與快速建檔）
+            bindMapClickListener();
         }
 
         // 5. 生成客製化地圖 Pin 圖標 (含評分、店名與選中光圈)
@@ -3077,6 +3038,59 @@
 
             applyFilters(true);
         }
+
+        /**
+         * 🏷️ 動態分類管理：確保選單包含目標分類，若無則動態建立並自動選中
+         */
+        function ensureCategoryOption(selectEl, category) {
+            if (!selectEl || !category) return;
+            const trimmed = String(category).trim();
+            if (!trimmed) return;
+
+            // 尋找既有選項
+            let foundIndex = -1;
+            for (let i = 0; i < selectEl.options.length; i++) {
+                const optVal = selectEl.options[i].value;
+                if (optVal === trimmed) {
+                    foundIndex = i;
+                    break;
+                }
+            }
+
+            if (foundIndex >= 0) {
+                selectEl.selectedIndex = foundIndex;
+            } else {
+                console.log("✨ [Dynamic Category] 動態建立並勾選新料理類別:", trimmed);
+                const newOpt = document.createElement('option');
+                newOpt.value = trimmed;
+                newOpt.textContent = trimmed;
+                newOpt.selected = true;
+                selectEl.appendChild(newOpt);
+                selectEl.value = trimmed;
+            }
+
+            // 同步擴充頂部導覽篩選按鈕
+            ensureCategoryPill(trimmed);
+        }
+        window.ensureCategoryOption = ensureCategoryOption;
+
+        /**
+         * 🏷️ 動態篩選按鈕擴充：若頂部過濾標籤列無該類別，動態追加
+         */
+        function ensureCategoryPill(category) {
+            const pillsContainer = document.getElementById('category-pills');
+            if (!pillsContainer || !category || category === 'all') return;
+            const existing = pillsContainer.querySelector(`[data-cat="${category}"]`);
+            if (!existing) {
+                const btn = document.createElement('button');
+                btn.setAttribute('data-cat', category);
+                btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center shrink-0";
+                btn.textContent = category;
+                btn.onclick = () => setCategoryFilter(category);
+                pillsContainer.appendChild(btn);
+            }
+        }
+        window.ensureCategoryPill = ensureCategoryPill;
 
         function onSortChange(sortType) {
             currentSort = sortType;
@@ -3755,7 +3769,7 @@
                 "1. 【真實標準店名 (name)】：精準還原該店家的正式營業名稱（例如：「忠貞誠米干」、「相演無煙燒肉 大興店」、「Postman 郵差先生義式臺菜」）。\n" +
                 "2. 【真實詳細門牌地址 (address)】：必須精確還原該店家在台灣真實存在的完整門市門牌地址（嚴格包含：縣市 + 行政區 + 路/街/巷/弄 + 門牌號碼，例如：「桃園市平鎮區忠貞路76號」、「桃園市桃園區大興西路二段30號」、「桃園市中壢區慈惠一街119號」）。絕對不可輸出模糊或僅有行政區的籠統字眼！\n" +
                 "3. 【精準 GPS 坐標 (lat, lng)】：請依據你對該真實地址的地理資訊庫，輸出該門市真實經緯度（台灣本島範圍：緯度 lat 約在 22.0 ~ 25.3，經度 lng 約在 120.0 ~ 122.0，精確至小數點後 4~6 位）。\n" +
-                "4. 【料理分類 (category)】：必須精確屬於以下八類之一：「燒肉/鍋物」、「中式/江浙」、「在地小吃/米干」、「異國/日料」、「港式茶餐廳」、「異國/餐酒館」、「港點/百匯」、「咖啡/甜點/早午餐」。\n" +
+                "4. 【料理分類 (category)】：必須依據店名、招牌菜色與商家特色進行「精確智慧判斷」，客觀歸類最適當的料理類別（例如：冰品豆花類應歸為「甜點/冰品」、咖啡輕食、美式漢堡、日式料理/壽司、拉麵、燒肉/鍋物、中式/江浙、在地小吃/米干、泰式料理、義式料理等）。嚴禁無腦固定為某個類別！\n" +
                 "5. 【評論深度診斷與社群爆款產出】：同步生成情感比率 (sentiment)、3大核心客怨痛點 (painPoints)、250字 IG 爆款行銷文案 (marketingCopy)、專業公關回覆 (prReply) 與營運改善建議 (aiAdvice)。\n\n" +
                 "請嚴格輸出合法的純 JSON 物件（所有文字皆使用繁體中文，且絕對不要包含任何 markdown 語法或 ```json 外框）：\n" +
                 "{\n" +
@@ -3763,7 +3777,7 @@
                 '  "address": "詳細完整門牌地址（嚴格包含縣市區路街門牌號）",\n' +
                 '  "lat": 24.9583,\n' +
                 '  "lng": 121.2240,\n' +
-                '  "category": "燒肉/鍋物",\n' +
+                '  "category": "依實際餐點智慧判斷之精確分類（例如：甜點/冰品、日式料理、在地小吃/米干等）",\n' +
                 '  "signatureDish": "招牌必吃推薦菜色（例如：手工松露義大利麵）",\n' +
                 '  "stars": 4.6,\n' +
                 '  "reviewCount": "1,280",\n' +
@@ -3928,9 +3942,8 @@
 
                 if (nameInput) nameInput.value = extracted.name || '';
                 if (addrInput) addrInput.value = extracted.address || '';
-                if (catInput) {
-                    const validOpts = Array.from(catInput.options).map(o => o.value);
-                    catInput.value = validOpts.includes(extracted.category) ? extracted.category : '燒肉/鍋物';
+                if (catInput && extracted.category) {
+                    ensureCategoryOption(catInput, extracted.category);
                 }
                 if (sigInput) sigInput.value = extracted.signatureDish || '';
 
@@ -3977,7 +3990,7 @@
 
             const storeName = document.getElementById('confirm-store-name')?.value.trim() || pendingQuickStore.name || "未知名稱店家";
             const storeAddress = document.getElementById('confirm-store-address')?.value.trim() || pendingQuickStore.address || "桃園市";
-            const storeCategory = document.getElementById('confirm-store-category')?.value || pendingQuickStore.category || "燒肉/鍋物";
+            const storeCategory = document.getElementById('confirm-store-category')?.value || pendingQuickStore.category || "特色餐飲";
             const storeSignature = document.getElementById('confirm-store-signature')?.value.trim() || pendingQuickStore.signatureDish || "主廚推薦特色料理";
 
             const confirmBtn = document.getElementById('confirm-and-save-btn');
@@ -4277,74 +4290,94 @@
         window.reverseGeocodeWithGoogle = reverseGeocodeWithGoogle;
 
         // =========================================================================
-        // 🎯 地圖互動點擊選點機制 (Map Click Picker)
+        // 🎯 地圖互動點擊選點與標記系統 (Map Click Pinning System)
         // =========================================================================
         let mapPickerActive = false;
         let mapPickerTargetModal = null;
         let previewPinMarker = null;
 
         /**
-         * 產生或更新地圖上的預覽 Pin 點 (帶有顯眼水波紋與標籤)
+         * 產生或更新地圖上的預覽標記 (帶有高亮度水波紋與即時 GPS 數值)
          */
         function updateMapPreviewPin(lat, lng, labelText = "📍 已選取位置") {
-            if (!window.map) return;
+            const currentMap = window.map || map;
+            if (!currentMap) return;
             if (previewPinMarker) {
-                window.map.removeLayer(previewPinMarker);
+                currentMap.removeLayer(previewPinMarker);
             }
             const icon = L.divIcon({
                 className: 'custom-pin-wrapper',
                 html: `
                     <div class="relative flex items-center justify-center pointer-events-none">
-                        <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                        <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-80"></span>
+                            <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-600"></span>
                         </span>
-                        <div class="bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xl border-2 border-white flex items-center space-x-1">
+                        <div class="bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xl border-2 border-white flex items-center space-x-1.5 whitespace-nowrap">
                             <i class="fa-solid fa-location-crosshairs text-amber-300 text-xs"></i>
                             <span>${labelText}</span>
                         </div>
                     </div>
                 `,
-                iconSize: [120, 32],
-                iconAnchor: [60, 32]
+                iconSize: [130, 34],
+                iconAnchor: [65, 34]
             });
-            previewPinMarker = L.marker([lat, lng], { icon, zIndexOffset: 10000 }).addTo(window.map);
+            previewPinMarker = L.marker([lat, lng], { icon, zIndexOffset: 10000 }).addTo(currentMap);
         }
 
         /**
-         * 啟動地圖點擊選點模式
+         * 啟動地圖點擊選點模式 (徹底隱藏覆蓋 Modal，確保地圖 100% 可點擊)
          * @param {'add-store'|'quick-confirm'} targetModal 
          */
-        function startMapPicker(targetModal = 'add-store') {
+        function startMapPicker(targetModal = 'quick-confirm') {
             mapPickerActive = true;
             window.mapPickerActive = true;
             mapPickerTargetModal = targetModal;
 
-            // 暫時收合表單 Modal 以便看清整張地圖
-            if (targetModal === 'add-store') {
-                const addModal = document.getElementById('add-store-modal');
-                if (addModal) addModal.classList.add('opacity-0', 'pointer-events-none');
-            } else if (targetModal === 'quick-confirm') {
-                const quickModal = document.getElementById('quick-confirm-modal');
-                if (quickModal) quickModal.classList.add('opacity-0', 'pointer-events-none');
+            // ⚠️ 關鍵：完全設置 display='none'，杜絕透明遮罩阻攔地圖點擊事件！
+            const quickModal = document.getElementById('quick-confirm-modal');
+            if (quickModal) {
+                quickModal.style.display = 'none';
+                quickModal.classList.add('opacity-0', 'pointer-events-none');
+            }
+            const addModal = document.getElementById('add-store-modal');
+            if (addModal) {
+                addModal.style.display = 'none';
+                addModal.classList.add('opacity-0', 'pointer-events-none');
             }
 
             // 顯示頂部導引 Banner
             const banner = document.getElementById('map-picker-banner');
-            if (banner) banner.classList.remove('hidden');
+            if (banner) {
+                banner.classList.remove('hidden');
+                banner.innerHTML = `
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <i class="fa-solid fa-location-crosshairs text-amber-300 text-sm"></i>
+                    <span class="font-bold">請在地圖上點擊店家目標位置以精準對齊</span>
+                    <button type="button" onclick="cancelMapPicker()"
+                        class="ml-2 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-[10px] font-semibold transition cursor-pointer">
+                        完成 / 返回
+                    </button>
+                `;
+            }
 
-            // 地圖容器游標設為十字準星
+            // 強制重新綁定點擊監聽器，確保點擊必能捕捉
+            bindMapClickListener();
+
+            // 調整游標樣式
             const mapEl = document.getElementById('map');
             if (mapEl) mapEl.style.cursor = 'crosshair';
 
-            // 若在手機端且目前在 report 視圖，自動切換回 map 視圖
+            // 若在行動端且處於報告分頁，切換回地圖分頁
             if (typeof switchMobileTab === 'function') {
                 switchMobileTab('map');
             }
+            const currentMap = window.map || map;
+            if (currentMap) currentMap.invalidateSize();
         }
 
         /**
-         * 取消或關閉選點模式
+         * 取消或關閉選點模式並還原視窗
          */
         function cancelMapPicker() {
             mapPickerActive = false;
@@ -4356,68 +4389,143 @@
             const mapEl = document.getElementById('map');
             if (mapEl) mapEl.style.cursor = '';
 
-            // 恢復原 Modal 顯示
+            // 恢復原 Modal 顯示 (清除 display='none')
             if (mapPickerTargetModal === 'add-store') {
+                const addModal = document.getElementById('add-store-modal');
+                if (addModal) addModal.style.display = '';
                 openAddStoreModal();
-            } else if (mapPickerTargetModal === 'quick-confirm') {
+            } else {
+                const quickModal = document.getElementById('quick-confirm-modal');
+                if (quickModal) quickModal.style.display = '';
                 openQuickConfirmModal();
             }
             mapPickerTargetModal = null;
         }
 
         /**
-         * 處理地圖點擊選點成功事件：自動將精確座標與地址填入表單
+         * 重新綁定地圖點擊監聽器 (保證全域點擊事件 100% 響應)
          */
-        function handleMapPickerSelected(lat, lng, address) {
-            updateMapPreviewPin(lat, lng, `🎯 ${lat}, ${lng}`);
+        function bindMapClickListener() {
+            const currentMap = window.map || map;
+            if (!currentMap) return;
+            currentMap.off('click');
+            currentMap.on('click', handleGlobalMapClick);
+        }
+        window.bindMapClickListener = bindMapClickListener;
 
-            if (mapPickerTargetModal === 'add-store') {
-                const latInput = document.getElementById('new-store-lat');
-                const lngInput = document.getElementById('new-store-lng');
-                const addrInput = document.getElementById('new-store-address');
-                const customCoordsWrapper = document.getElementById('custom-coords-wrapper');
+        /**
+         * 全域地圖點擊處理器 (支援選點即時回填與地圖互動選點 Popup)
+         */
+        async function handleGlobalMapClick(e) {
+            if (!e || !e.latlng) return;
+            const { lat, lng } = e.latlng;
+            const roundedLat = parseFloat(lat.toFixed(6));
+            const roundedLng = parseFloat(lng.toFixed(6));
+            console.log("🎯 [Map Click Pinning] 成功捕捉點擊坐標:", roundedLat, roundedLng);
 
-                if (latInput) latInput.value = lat;
-                if (lngInput) lngInput.value = lng;
-                if (customCoordsWrapper) customCoordsWrapper.classList.remove('hidden');
+            // ① 即時更新地圖上的預覽 Pin 點
+            updateMapPreviewPin(roundedLat, roundedLng, `🎯 ${roundedLat}, ${roundedLng}`);
 
-                if (addrInput && (!addrInput.value || addrInput.value.includes('點擊位置') || addrInput.value.length < 3)) {
-                    if (address && !address.includes('點擊位置')) {
-                        addrInput.value = address;
-                    }
+            // ② 官方 Geocoder 反向解析門牌
+            let resolvedAddress = `點擊位置 (${roundedLat}, ${roundedLng})`;
+            if (typeof reverseGeocodeWithGoogle === 'function') {
+                const googleAddr = await reverseGeocodeWithGoogle(roundedLat, roundedLng);
+                if (googleAddr) resolvedAddress = googleAddr;
+            }
+
+            // ③ 即時同步將數值更新在畫面的座標顯示上
+            updateCoordinateDisplayAndForm(roundedLat, roundedLng, resolvedAddress);
+
+            // ④ 若處於選點模式，更新提示並自動返回確認視窗
+            if (window.mapPickerActive) {
+                const banner = document.getElementById('map-picker-banner');
+                if (banner) {
+                    banner.innerHTML = `
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <i class="fa-solid fa-circle-check text-emerald-300 text-sm"></i>
+                        <span class="font-bold">已成功標定座標 (${roundedLat}, ${roundedLng})！正在返回確認視窗...</span>
+                    `;
                 }
-            } else if (mapPickerTargetModal === 'quick-confirm') {
-                if (typeof pendingQuickStore !== 'undefined' && pendingQuickStore) {
-                    pendingQuickStore.lat = lat;
-                    pendingQuickStore.lng = lng;
-                    pendingQuickStore.urlCoords = { lat: lat, lng: lng, source: 'map_picker' };
-                    if (address && !address.includes('點擊位置')) {
-                        pendingQuickStore.address = address;
-                    }
-                }
+                setTimeout(() => {
+                    cancelMapPicker();
+                }, 300);
+                return;
+            }
 
-                const addrInput = document.getElementById('confirm-store-address');
-                if (addrInput && address && !address.includes('點擊位置')) {
-                    addrInput.value = address;
-                }
+            // ⑤ 若為一般瀏覽點擊，彈出「在此位置新增餐廳」Popup
+            const encodedAddress = encodeURIComponent(resolvedAddress);
+            const popupContent = `
+                <div class="text-xs space-y-2 p-1 min-w-[210px]">
+                    <div class="flex items-center space-x-1.5 text-blue-600 font-bold">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span>地圖互動選點</span>
+                    </div>
+                    <p class="text-[11px] text-slate-700 leading-tight font-medium">${resolvedAddress}</p>
+                    <div class="text-[10px] text-slate-400 font-mono">GPS: ${roundedLat}, ${roundedLng}</div>
+                    <button onclick="triggerAddStoreFromMap(${roundedLat}, ${roundedLng}, '${encodedAddress}')" 
+                            class="w-full mt-1.5 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer">
+                        <i class="fa-solid fa-plus text-[10px]"></i>
+                        <span>在此位置新增餐廳</span>
+                    </button>
+                </div>
+            `;
+            const currentMap = window.map || map;
+            if (currentMap) L.popup().setLatLng(e.latlng).setContent(popupContent).openOn(currentMap);
+        }
 
-                const coordsStatusEl = document.getElementById('confirm-coords-status');
-                const coordsIconEl = document.getElementById('confirm-coords-icon');
-                const coordsTextEl = document.getElementById('confirm-coords-status-text');
-                if (coordsStatusEl && coordsTextEl) {
-                    coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800";
-                    if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
-                    coordsTextEl.innerHTML = `🎯 <b>已採用地圖精準點選座標</b> (${lat}, ${lng})，100% 精準對齊！`;
+        /**
+         * 數值同步器：將精確經緯度回填至表單，並在畫面顯示即時座標
+         */
+        function updateCoordinateDisplayAndForm(lat, lng, address) {
+            // A. 更新 quick-confirm-modal
+            if (typeof pendingQuickStore !== 'undefined' && pendingQuickStore) {
+                pendingQuickStore.lat = lat;
+                pendingQuickStore.lng = lng;
+                pendingQuickStore.urlCoords = { lat: lat, lng: lng, source: 'map_pick' };
+                if (address && !address.includes('點擊位置')) {
+                    pendingQuickStore.address = address;
                 }
             }
 
-            cancelMapPicker();
-        }
+            const confirmAddrInput = document.getElementById('confirm-store-address');
+            if (confirmAddrInput && address && !address.includes('點擊位置')) {
+                confirmAddrInput.value = address;
+            }
 
+            const coordsStatusEl = document.getElementById('confirm-coords-status');
+            const coordsIconEl = document.getElementById('confirm-coords-icon');
+            const coordsTextEl = document.getElementById('confirm-coords-status-text');
+            const coordsValEl = document.getElementById('confirm-coords-val');
+
+            if (coordsStatusEl && coordsTextEl) {
+                coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center justify-between bg-emerald-50 border-emerald-200/80 text-emerald-800";
+                if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
+                coordsTextEl.innerHTML = `🎯 <b>已採用地圖精準標點座標</b>，100% 精準對齊！`;
+            }
+            if (coordsValEl) {
+                coordsValEl.innerText = `${lat}, ${lng}`;
+            }
+
+            // B. 更新 add-store-modal
+            const latInput = document.getElementById('new-store-lat');
+            const lngInput = document.getElementById('new-store-lng');
+            const addrInput = document.getElementById('new-store-address');
+            const customCoordsWrapper = document.getElementById('custom-coords-wrapper');
+
+            if (latInput) latInput.value = lat;
+            if (lngInput) lngInput.value = lng;
+            if (customCoordsWrapper) customCoordsWrapper.classList.remove('hidden');
+
+            if (addrInput && (!addrInput.value || addrInput.value.includes('點擊位置') || addrInput.value.length < 3)) {
+                if (address && !address.includes('點擊位置')) {
+                    addrInput.value = address;
+                }
+            }
+        }
+        window.updateCoordinateDisplayAndForm = updateCoordinateDisplayAndForm;
         window.updateMapPreviewPin = updateMapPreviewPin;
         window.startMapPicker = startMapPicker;
         window.cancelMapPicker = cancelMapPicker;
-        window.handleMapPickerSelected = handleMapPickerSelected;
 
         /**
          * 🎯 Google Maps 網址座標直取萃取器 (URL Coordinate Extraction)
