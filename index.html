@@ -2580,6 +2580,46 @@
             [50, 200, 500].forEach(ms => setTimeout(() => {
                 if (map) map.invalidateSize();
             }, ms));
+
+            // 🎯 結合地圖互動點擊：在地圖上任意點擊時，反查詳細門牌地址並提供「在此位置新增餐廳」按鈕
+            map.on('click', async (e) => {
+                const { lat, lng } = e.latlng;
+                const roundedLat = parseFloat(lat.toFixed(6));
+                const roundedLng = parseFloat(lng.toFixed(6));
+
+                let resolvedAddress = `點擊位置 (${roundedLat}, ${roundedLng})`;
+                
+                // 優先調用 Google Maps 官方 Geocoder 進行 Reverse Geocoding 反查門牌
+                if (typeof reverseGeocodeWithGoogle === 'function') {
+                    const googleAddr = await reverseGeocodeWithGoogle(roundedLat, roundedLng);
+                    if (googleAddr) {
+                        resolvedAddress = googleAddr;
+                    }
+                }
+
+                const encodedAddress = encodeURIComponent(resolvedAddress);
+
+                const popupContent = `
+                    <div class="text-xs space-y-2 p-1 min-w-[210px]">
+                        <div class="flex items-center space-x-1.5 text-blue-600 font-bold">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span>地圖互動選點</span>
+                        </div>
+                        <p class="text-[11px] text-slate-700 leading-tight font-medium">${resolvedAddress}</p>
+                        <div class="text-[10px] text-slate-400 font-mono">GPS: ${roundedLat}, ${roundedLng}</div>
+                        <button onclick="triggerAddStoreFromMap(${roundedLat}, ${roundedLng}, '${encodedAddress}')" 
+                                class="w-full mt-1.5 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer">
+                            <i class="fa-solid fa-plus text-[10px]"></i>
+                            <span>在此位置新增餐廳</span>
+                        </button>
+                    </div>
+                `;
+
+                L.popup()
+                    .setLatLng(e.latlng)
+                    .setContent(popupContent)
+                    .openOn(map);
+            });
         }
 
         // 5. 生成客製化地圖 Pin 圖標 (含評分、店名與選中光圈)
@@ -3915,6 +3955,148 @@
         // =========================================================================
         const GOOGLE_MAPS_API_KEY = ""; // 例如: "AIzaSy..."
 
+        // 🚀 動態加載 Google Maps 官方 SDK（支援官方 google.maps.Geocoder 服務）
+        function initGoogleMapsSdk() {
+            const key = localStorage.getItem('STOREVOICE_GOOGLE_MAPS_KEY') || GOOGLE_MAPS_API_KEY || '';
+            if (key && key.trim() && key !== 'YOUR_GOOGLE_MAPS_API_KEY') {
+                if (typeof google === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key.trim()) + "&libraries=places";
+                    script.async = true;
+                    script.defer = true;
+                    script.onload = () => console.log("🚀 [Google Maps SDK] 官方 SDK 載入完成，已啟用企業級 Geocoder 服務");
+                    document.head.appendChild(script);
+                }
+            }
+        }
+        initGoogleMapsSdk();
+
+        /**
+         * =========================================================================
+         * 🏢 方案 B：高精準度、企業級架構（使用 Google Maps 官方 SDK 服務）
+         * =========================================================================
+         * 調用 google.maps.Geocoder() 官方服務，實現極致門牌精準定位
+         * @param {string} address - 門市詳細地址
+         * @returns {Promise<{lat: number, lng: number, formattedAddress: string, source: string}|null>}
+         */
+        function geocodeAddressWithGoogle(address) {
+            return new Promise((resolve) => {
+                if (!address || typeof address !== 'string' || !address.trim()) {
+                    return resolve(null);
+                }
+
+                // 檢查 Google Maps 官方 SDK 是否就緒
+                if (typeof google === 'undefined' || !google.maps || !google.maps.Geocoder) {
+                    console.log("ℹ️ [Google SDK Geocoder] 官方 SDK 尚未就緒，將自動使用 REST/備援機制。");
+                    return resolve(null);
+                }
+
+                try {
+                    const geocoder = new google.maps.Geocoder();
+                    console.log("🏢 [Google SDK Geocoder] 正在透過官方 Geocoder 服務精準解析:", address);
+
+                    geocoder.geocode({ address: address.trim() }, (results, status) => {
+                        if (status === 'OK' && results && results[0]) {
+                            const loc = results[0].geometry.location;
+                            const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
+                            const lng = typeof loc.lng === 'function' ? loc.lng() : loc.lng;
+                            console.log("✅ [Google SDK Geocoder] 官方 Geocoder 成功解析精確門牌坐標:", lat, lng);
+                            resolve({
+                                lat: parseFloat(lat.toFixed(6)),
+                                lng: parseFloat(lng.toFixed(6)),
+                                formattedAddress: results[0].formatted_address,
+                                source: 'google_sdk'
+                            });
+                        } else {
+                            console.warn("⚠️ [Google SDK Geocoder] 解析狀態非 OK (" + status + ")，轉由備援機制接手。");
+                            resolve(null);
+                        }
+                    });
+                } catch (err) {
+                    console.warn("⚠️ [Google SDK Geocoder] 呼叫異常:", err.message);
+                    resolve(null);
+                }
+            });
+        }
+
+        /**
+         * 調用 google.maps.Geocoder() 透過座標反向解析門市地址 (Reverse Geocoding)
+         * @param {number} lat - 緯度
+         * @param {number} lng - 經度
+         * @returns {Promise<string|null>}
+         */
+        function reverseGeocodeWithGoogle(lat, lng) {
+            return new Promise((resolve) => {
+                if (typeof google === 'undefined' || !google.maps || !google.maps.Geocoder) {
+                    return resolve(null);
+                }
+                try {
+                    const geocoder = new google.maps.Geocoder();
+                    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+                        if (status === 'OK' && results && results[0]) {
+                            resolve(results[0].formatted_address);
+                        } else {
+                            resolve(null);
+                        }
+                    });
+                } catch (e) {
+                    resolve(null);
+                }
+            });
+        }
+
+        /**
+         * 🗺️ 從地圖互動點擊啟動店家確認與建檔
+         */
+        function triggerAddStoreFromMap(lat, lng, encodedAddr) {
+            const addr = decodeURIComponent(encodedAddr);
+            if (window.map) window.map.closePopup();
+
+            pendingQuickStore = {
+                name: "地圖標記新門市",
+                address: addr,
+                category: "燒肉/鍋物",
+                signatureDish: "主廚特色招牌料理",
+                stars: 4.6,
+                reviewCount: "1,200",
+                sentiment: { pos: 85, neu: 10, neg: 5 },
+                painPoints: ["尖峰時段等候入座時間較長", "周邊特約停車位較有限", "熱門招牌品項晚間偶提早售罄"],
+                marketingCopy: "針對該店招牌特色撰寫的 250 字 IG 爆款行銷文案...",
+                prReply: "針對核心負評痛點的專業公關回覆範本...",
+                aiAdvice: ["建議導入線上候位叫號與分流預約機制。", "加強社群短影音行銷。"],
+                lat: lat,
+                lng: lng,
+                urlCoords: { lat: lat, lng: lng, source: 'map_click' }
+            };
+
+            const nameInput = document.getElementById('confirm-store-name');
+            const addrInput = document.getElementById('confirm-store-address');
+            const catInput = document.getElementById('confirm-store-category');
+            const sigInput = document.getElementById('confirm-store-signature');
+
+            if (nameInput) nameInput.value = "";
+            if (addrInput) addrInput.value = addr;
+            if (catInput) catInput.value = "燒肉/鍋物";
+            if (sigInput) sigInput.value = "主廚特色招牌料理";
+
+            const coordsStatusEl = document.getElementById('confirm-coords-status');
+            const coordsIconEl = document.getElementById('confirm-coords-icon');
+            const coordsTextEl = document.getElementById('confirm-coords-status-text');
+            if (coordsStatusEl && coordsTextEl) {
+                coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800";
+                if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
+                coordsTextEl.innerHTML = "🎯 <b>已採用地圖點擊精確 GPS 座標</b> (" + lat + ", " + lng + ")，100% 精準對齊！";
+            }
+
+            openQuickConfirmModal();
+            setTimeout(() => {
+                if (nameInput) nameInput.focus();
+            }, 250);
+        }
+        window.triggerAddStoreFromMap = triggerAddStoreFromMap;
+        window.geocodeAddressWithGoogle = geocodeAddressWithGoogle;
+        window.reverseGeocodeWithGoogle = reverseGeocodeWithGoogle;
+
         /**
          * 🎯 Google Maps 網址座標直取萃取器 (URL Coordinate Extraction)
          * 支援 @lat,lng、!3dlat!4dlng、?q=lat,lng、&ll=lat,lng、query=lat,lng 等全格式
@@ -4082,7 +4264,13 @@
                 return directFromAddress;
             }
 
-            // ① 優先檢驗老闆是否在進階選單中手動指定座標
+            // ① 【方案 B：高精準度、企業級架構】優先調用 Google Maps 官方 SDK Geocoder 服務
+            const sdkCoords = await geocodeAddressWithGoogle(address);
+            if (sdkCoords) {
+                return sdkCoords;
+            }
+
+            // ② 優先檢驗老闆是否在進階選單中手動指定座標
             const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
             const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
             if (!isNaN(manualLat) && !isNaN(manualLng)) {
