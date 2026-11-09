@@ -277,6 +277,10 @@
                             <i class="fa-solid fa-bolt text-amber-600"></i>
                         </button>
                     </div>
+                    <p class="text-[10px] text-blue-100/90 mt-1.5 flex items-center">
+                        <i class="fa-solid fa-lightbulb text-amber-300 mr-1 shrink-0"></i>
+                        <span>支援網址直接萃取 @lat,lng；若地址定位有落差，可直接在地圖上點擊正確位置來精準對齊。</span>
+                    </p>
                 </div>
 
                 <!-- 搜尋輸入列 -->
@@ -1073,6 +1077,18 @@
         </div>
     </div>
 
+    <!-- 🎯 地圖互動點擊選點引導橫條 (在選點模式下浮現) -->
+    <div id="map-picker-banner"
+        class="hidden fixed top-16 left-1/2 -translate-x-1/2 z-[3000] bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-2xl border border-blue-400/60 flex items-center space-x-3 text-xs animate-bounce">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+        <i class="fa-solid fa-location-crosshairs text-amber-300 text-sm"></i>
+        <span class="font-bold">請在地圖上點擊店家目標位置以精準對齊</span>
+        <button type="button" onclick="cancelMapPicker()"
+            class="ml-2 px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-[10px] font-semibold transition cursor-pointer">
+            完成 / 返回
+        </button>
+    </div>
+
     <!-- 🚀 AI 商家資訊預覽確認與微調 Modal (Human-in-the-loop) -->
     <div id="quick-confirm-modal" onclick="onQuickConfirmBackdropClick(event)"
         class="fixed inset-0 z-[2100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs opacity-0 pointer-events-none transition-all duration-200">
@@ -1113,7 +1129,11 @@
                         <label class="font-semibold text-slate-700">
                             門市詳細地址 <span class="text-rose-500">*</span>
                         </label>
-                        <span class="text-[10px] text-indigo-600 font-medium">可手動修正門牌號碼</span>
+                        <button type="button" onclick="startMapPicker('quick-confirm')"
+                            class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-100 transition">
+                            <i class="fa-solid fa-location-crosshairs text-indigo-500"></i>
+                            <span>在地圖上選點</span>
+                        </button>
                     </div>
                     <div class="relative">
                         <i class="fa-solid fa-location-dot absolute left-3 top-1/2 -translate-y-1/2 text-rose-500"></i>
@@ -1121,6 +1141,10 @@
                             placeholder="例如：桃園市桃園區大興西路二段268號"
                             class="w-full pl-8 pr-3 py-2 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs text-slate-800 bg-blue-50/30 font-medium">
                     </div>
+                    <p class="text-[10px] text-slate-400 mt-1 flex items-center">
+                        <i class="fa-solid fa-lightbulb text-amber-500 mr-1 shrink-0"></i>
+                        <span>若地址定位有落差，可直接在地圖上點擊正確位置來精準對齊。</span>
+                    </p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
@@ -1274,13 +1298,18 @@
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="font-semibold text-slate-700">門市詳細地址 <span class="text-rose-500">*</span></label>
-                        <span class="text-[10px] text-blue-600 font-normal flex items-center">
-                            <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>系統自動對應商圈座標
-                        </span>
+                        <button type="button" onclick="startMapPicker('add-store')"
+                            class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold flex items-center space-x-1 cursor-pointer bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md border border-blue-100 transition">
+                            <i class="fa-solid fa-location-crosshairs text-blue-500"></i>
+                            <span>在地圖上選點</span>
+                        </button>
                     </div>
                     <input id="new-store-address" type="text" required placeholder="例如：桃園市中壢區延平路452號 (近中壢監理站)"
                         class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                    <p class="text-[10px] text-slate-400 mt-1">💡 只要包含行政區（如中壢、桃園、蘆竹、龍岡等），地圖將自動精準定位至該商圈。</p>
+                    <p class="text-[10px] text-slate-400 mt-1 flex items-center">
+                        <i class="fa-solid fa-lightbulb text-amber-500 mr-1 shrink-0"></i>
+                        <span>若地址定位有落差，可直接在地圖上點擊正確位置來精準對齊。</span>
+                    </p>
                 </div>
 
                 <!-- 進階選填：手動指定座標 (預設隱藏折疊) -->
@@ -2599,11 +2628,14 @@
                 if (map) map.invalidateSize();
             }, ms));
 
-            // 🎯 結合地圖互動點擊：在地圖上任意點擊時，反查詳細門牌地址並提供「在此位置新增餐廳」按鈕
+            // 🎯 結合地圖互動點擊選點機制：在地圖上任意點擊時，即時產生預覽 Pin 點並自動填入表單
             map.on('click', async (e) => {
                 const { lat, lng } = e.latlng;
                 const roundedLat = parseFloat(lat.toFixed(6));
                 const roundedLng = parseFloat(lng.toFixed(6));
+
+                // 即時在地圖上更新/產生預覽 Pin 點
+                updateMapPreviewPin(roundedLat, roundedLng, "📍 選取位置");
 
                 let resolvedAddress = `點擊位置 (${roundedLat}, ${roundedLng})`;
                 
@@ -2613,6 +2645,12 @@
                     if (googleAddr) {
                         resolvedAddress = googleAddr;
                     }
+                }
+
+                // 🎯 若處於選點模式，直接將精確座標填入當前表單並自動退出選點模式
+                if (window.mapPickerActive) {
+                    handleMapPickerSelected(roundedLat, roundedLng, resolvedAddress);
+                    return;
                 }
 
                 const encodedAddress = encodeURIComponent(resolvedAddress);
@@ -4238,6 +4276,149 @@
         window.geocodeAddressWithGoogle = geocodeAddressWithGoogle;
         window.reverseGeocodeWithGoogle = reverseGeocodeWithGoogle;
 
+        // =========================================================================
+        // 🎯 地圖互動點擊選點機制 (Map Click Picker)
+        // =========================================================================
+        let mapPickerActive = false;
+        let mapPickerTargetModal = null;
+        let previewPinMarker = null;
+
+        /**
+         * 產生或更新地圖上的預覽 Pin 點 (帶有顯眼水波紋與標籤)
+         */
+        function updateMapPreviewPin(lat, lng, labelText = "📍 已選取位置") {
+            if (!window.map) return;
+            if (previewPinMarker) {
+                window.map.removeLayer(previewPinMarker);
+            }
+            const icon = L.divIcon({
+                className: 'custom-pin-wrapper',
+                html: `
+                    <div class="relative flex items-center justify-center pointer-events-none">
+                        <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                        </span>
+                        <div class="bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xl border-2 border-white flex items-center space-x-1">
+                            <i class="fa-solid fa-location-crosshairs text-amber-300 text-xs"></i>
+                            <span>${labelText}</span>
+                        </div>
+                    </div>
+                `,
+                iconSize: [120, 32],
+                iconAnchor: [60, 32]
+            });
+            previewPinMarker = L.marker([lat, lng], { icon, zIndexOffset: 10000 }).addTo(window.map);
+        }
+
+        /**
+         * 啟動地圖點擊選點模式
+         * @param {'add-store'|'quick-confirm'} targetModal 
+         */
+        function startMapPicker(targetModal = 'add-store') {
+            mapPickerActive = true;
+            window.mapPickerActive = true;
+            mapPickerTargetModal = targetModal;
+
+            // 暫時收合表單 Modal 以便看清整張地圖
+            if (targetModal === 'add-store') {
+                const addModal = document.getElementById('add-store-modal');
+                if (addModal) addModal.classList.add('opacity-0', 'pointer-events-none');
+            } else if (targetModal === 'quick-confirm') {
+                const quickModal = document.getElementById('quick-confirm-modal');
+                if (quickModal) quickModal.classList.add('opacity-0', 'pointer-events-none');
+            }
+
+            // 顯示頂部導引 Banner
+            const banner = document.getElementById('map-picker-banner');
+            if (banner) banner.classList.remove('hidden');
+
+            // 地圖容器游標設為十字準星
+            const mapEl = document.getElementById('map');
+            if (mapEl) mapEl.style.cursor = 'crosshair';
+
+            // 若在手機端且目前在 report 視圖，自動切換回 map 視圖
+            if (typeof switchMobileTab === 'function') {
+                switchMobileTab('map');
+            }
+        }
+
+        /**
+         * 取消或關閉選點模式
+         */
+        function cancelMapPicker() {
+            mapPickerActive = false;
+            window.mapPickerActive = false;
+
+            const banner = document.getElementById('map-picker-banner');
+            if (banner) banner.classList.add('hidden');
+
+            const mapEl = document.getElementById('map');
+            if (mapEl) mapEl.style.cursor = '';
+
+            // 恢復原 Modal 顯示
+            if (mapPickerTargetModal === 'add-store') {
+                openAddStoreModal();
+            } else if (mapPickerTargetModal === 'quick-confirm') {
+                openQuickConfirmModal();
+            }
+            mapPickerTargetModal = null;
+        }
+
+        /**
+         * 處理地圖點擊選點成功事件：自動將精確座標與地址填入表單
+         */
+        function handleMapPickerSelected(lat, lng, address) {
+            updateMapPreviewPin(lat, lng, `🎯 ${lat}, ${lng}`);
+
+            if (mapPickerTargetModal === 'add-store') {
+                const latInput = document.getElementById('new-store-lat');
+                const lngInput = document.getElementById('new-store-lng');
+                const addrInput = document.getElementById('new-store-address');
+                const customCoordsWrapper = document.getElementById('custom-coords-wrapper');
+
+                if (latInput) latInput.value = lat;
+                if (lngInput) lngInput.value = lng;
+                if (customCoordsWrapper) customCoordsWrapper.classList.remove('hidden');
+
+                if (addrInput && (!addrInput.value || addrInput.value.includes('點擊位置') || addrInput.value.length < 3)) {
+                    if (address && !address.includes('點擊位置')) {
+                        addrInput.value = address;
+                    }
+                }
+            } else if (mapPickerTargetModal === 'quick-confirm') {
+                if (typeof pendingQuickStore !== 'undefined' && pendingQuickStore) {
+                    pendingQuickStore.lat = lat;
+                    pendingQuickStore.lng = lng;
+                    pendingQuickStore.urlCoords = { lat: lat, lng: lng, source: 'map_picker' };
+                    if (address && !address.includes('點擊位置')) {
+                        pendingQuickStore.address = address;
+                    }
+                }
+
+                const addrInput = document.getElementById('confirm-store-address');
+                if (addrInput && address && !address.includes('點擊位置')) {
+                    addrInput.value = address;
+                }
+
+                const coordsStatusEl = document.getElementById('confirm-coords-status');
+                const coordsIconEl = document.getElementById('confirm-coords-icon');
+                const coordsTextEl = document.getElementById('confirm-coords-status-text');
+                if (coordsStatusEl && coordsTextEl) {
+                    coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800";
+                    if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
+                    coordsTextEl.innerHTML = `🎯 <b>已採用地圖精準點選座標</b> (${lat}, ${lng})，100% 精準對齊！`;
+                }
+            }
+
+            cancelMapPicker();
+        }
+
+        window.updateMapPreviewPin = updateMapPreviewPin;
+        window.startMapPicker = startMapPicker;
+        window.cancelMapPicker = cancelMapPicker;
+        window.handleMapPickerSelected = handleMapPickerSelected;
+
         /**
          * 🎯 Google Maps 網址座標直取萃取器 (URL Coordinate Extraction)
          * 支援 @lat,lng、!3dlat!4dlng、?q=lat,lng、&ll=lat,lng、query=lat,lng 等全格式
@@ -4405,18 +4586,18 @@
                 return directFromAddress;
             }
 
-            // ① 【方案 B：高精準度、企業級架構】優先調用 Google Maps 官方 SDK Geocoder 服務
+            // ① 優先檢驗老闆是否在地圖上點擊選點或手動指定座標
+            const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
+            const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
+            if (!isNaN(manualLat) && !isNaN(manualLng) && manualLat >= -90 && manualLat <= 90 && manualLng >= -180 && manualLng <= 180) {
+                console.log("📍 [Geocoding] 優先採用老闆地圖點擊/手動指定精確坐標：[" + manualLat + ", " + manualLng + "]");
+                return { lat: manualLat, lng: manualLng, source: 'manual' };
+            }
+
+            // ② 【方案 B：高精準度、企業級架構】調用 Google Maps 官方 SDK Geocoder 服務
             const sdkCoords = await geocodeAddressWithGoogle(address);
             if (sdkCoords) {
                 return sdkCoords;
-            }
-
-            // ② 優先檢驗老闆是否在進階選單中手動指定座標
-            const manualLat = parseFloat(document.getElementById('new-store-lat')?.value);
-            const manualLng = parseFloat(document.getElementById('new-store-lng')?.value);
-            if (!isNaN(manualLat) && !isNaN(manualLng)) {
-                console.log("📍 [Geocoding] 採用老闆手動指定精確坐標：[" + manualLat + ", " + manualLng + "]");
-                return { lat: manualLat, lng: manualLng, source: 'manual' };
             }
 
             // ② 嘗試透過 Google Maps Geocoding API 查詢真實地址
