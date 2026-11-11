@@ -61,10 +61,22 @@
             background-color: #f1f5f9;
         }
 
-        /* 自訂地圖 Pin 標記與水波紋脈衝動畫 */
+        /* 自訂地圖 Pin 標記與水波紋脈衝動畫（比照 Google Maps 懸停顯示點擊小手） */
+        .leaflet-container .leaflet-marker-icon,
+        .leaflet-container .leaflet-marker-pane .leaflet-marker-icon,
+        .custom-pin-wrapper,
+        .custom-pin-wrapper *,
+        .custom-map-pin,
+        .custom-map-pin * {
+            cursor: pointer !important;
+        }
+
         .custom-pin-wrapper {
             background: transparent;
             border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .custom-map-pin {
@@ -77,7 +89,7 @@
             border-radius: 9999px;
             border: 1.5px solid #cbd5e1;
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-            cursor: pointer;
+            cursor: pointer !important;
             transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
             user-select: none;
             touch-action: manipulation;
@@ -4835,15 +4847,16 @@
         }
 
         /**
-         * 🗺️ 從地圖互動點擊啟動店家確認與建檔
+         * 🗺️ 從地圖互動點擊啟動店家確認與建檔 (經緯度僅保留於表單狀態與內部資料，不浮動顯示於地圖)
          */
         function triggerAddStoreFromMap(lat, lng, encodedAddr) {
             const addr = decodeURIComponent(encodedAddr);
+            const hasStreetAddress = Boolean(addr && !addr.includes('點擊位置') && !addr.includes('已標記地圖位置'));
             if (window.map) window.map.closePopup();
 
             pendingQuickStore = {
                 name: "地圖標記新門市",
-                address: addr,
+                address: hasStreetAddress ? addr : "",
                 category: "燒肉/鍋物",
                 signatureDish: "主廚特色招牌料理",
                 stars: 4.6,
@@ -4864,17 +4877,21 @@
             const sigInput = document.getElementById('confirm-store-signature');
 
             if (nameInput) nameInput.value = "";
-            if (addrInput) addrInput.value = addr;
+            if (addrInput) addrInput.value = hasStreetAddress ? addr : "";
             if (catInput) catInput.value = "燒肉/鍋物";
             if (sigInput) sigInput.value = "主廚特色招牌料理";
 
             const coordsStatusEl = document.getElementById('confirm-coords-status');
             const coordsIconEl = document.getElementById('confirm-coords-icon');
             const coordsTextEl = document.getElementById('confirm-coords-status-text');
+            const coordsValEl = document.getElementById('confirm-coords-val');
             if (coordsStatusEl && coordsTextEl) {
-                coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center space-x-2 bg-emerald-50 border-emerald-200/80 text-emerald-800";
-                if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
-                coordsTextEl.innerHTML = "🎯 <b>已採用地圖點擊精確 GPS 座標</b> (" + lat + ", " + lng + ")，100% 精準對齊！";
+                coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-emerald-50 border-emerald-200/80 text-emerald-800";
+                if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs mt-0.5 sm:mt-0";
+                coordsTextEl.innerHTML = "🎯 <b>已採用地圖精準標點定位</b>，100% 精準對齊！";
+            }
+            if (coordsValEl) {
+                coordsValEl.innerText = `${lat}, ${lng}`;
             }
 
             openQuickConfirmModal();
@@ -4894,14 +4911,17 @@
         let previewPinMarker = null;
 
         /**
-         * 產生或更新地圖上的預覽標記 (帶有高亮度水波紋與即時 GPS 數值)
+         * 產生或更新地圖上的預覽標記（保持地圖畫面乾淨，不浮動顯示經緯度數字）
          */
-        function updateMapPreviewPin(lat, lng, labelText = "📍 已選取位置") {
+        function updateMapPreviewPin(lat, lng, labelText = "已選取位置") {
             const currentMap = window.map || map;
             if (!currentMap) return;
             if (previewPinMarker) {
                 currentMap.removeLayer(previewPinMarker);
             }
+            const safeLabel = (!labelText || /-?\d+\.\d+\s*,\s*-?\d+\.\d+/.test(String(labelText)))
+                ? "已選取目標位置"
+                : String(labelText);
             const icon = L.divIcon({
                 className: 'custom-pin-wrapper',
                 html: `
@@ -4912,7 +4932,7 @@
                         </span>
                         <div class="bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-2xl border-2 border-white flex items-center space-x-1.5 whitespace-nowrap">
                             <i class="fa-solid fa-location-crosshairs text-amber-300 text-xs"></i>
-                            <span>${labelText}</span>
+                            <span>${safeLabel}</span>
                         </div>
                     </div>
                 `,
@@ -5011,7 +5031,7 @@
         window.bindMapClickListener = bindMapClickListener;
 
         /**
-         * 全域地圖點擊處理器 (支援選點即時回填與地圖互動選點 Popup)
+         * 全域地圖點擊處理器 (地圖保持乾淨不顯示浮動經緯度，數值僅回填表單與內部狀態)
          */
         async function handleGlobalMapClick(e) {
             if (!e || !e.latlng) return;
@@ -5020,17 +5040,17 @@
             const roundedLng = parseFloat(lng.toFixed(6));
             console.log("🎯 [Map Click Pinning] 成功捕捉點擊坐標:", roundedLat, roundedLng);
 
-            // ① 即時更新地圖上的預覽 Pin 點
-            updateMapPreviewPin(roundedLat, roundedLng, `🎯 ${roundedLat}, ${roundedLng}`);
+            // ① 即時更新地圖上的預覽 Pin 點（僅顯示文字標籤，隱藏經緯度數字）
+            updateMapPreviewPin(roundedLat, roundedLng, "已選取目標位置");
 
             // ② 官方 Geocoder 反向解析門牌
-            let resolvedAddress = `點擊位置 (${roundedLat}, ${roundedLng})`;
+            let resolvedAddress = "已標記地圖位置";
             if (typeof reverseGeocodeWithGoogle === 'function') {
                 const googleAddr = await reverseGeocodeWithGoogle(roundedLat, roundedLng);
                 if (googleAddr) resolvedAddress = googleAddr;
             }
 
-            // ③ 即時同步將數值更新在畫面的座標顯示上
+            // ③ 僅將經緯度寫入新增/確認表單欄位與內部記錄
             updateCoordinateDisplayAndForm(roundedLat, roundedLng, resolvedAddress);
 
             // ④ 若處於選點模式，更新提示並自動返回確認視窗
@@ -5040,7 +5060,7 @@
                     banner.innerHTML = `
                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                         <i class="fa-solid fa-circle-check text-emerald-300 text-sm"></i>
-                        <span class="font-bold">已成功標定座標 (${roundedLat}, ${roundedLng})！正在返回確認視窗...</span>
+                        <span class="font-bold">已成功標定目標位置！正在返回確認視窗...</span>
                     `;
                 }
                 setTimeout(() => {
@@ -5049,16 +5069,16 @@
                 return;
             }
 
-            // ⑤ 若為一般瀏覽點擊，彈出「在此位置新增餐廳」Popup
+            // ⑤ 若為一般瀏覽點擊，彈出清爽的「在此位置新增餐廳」Popup（不展示經緯度文字）
+            const hasStreetAddr = resolvedAddress !== "已標記地圖位置";
             const encodedAddress = encodeURIComponent(resolvedAddress);
             const popupContent = `
-                <div class="text-xs space-y-2 p-1 min-w-[210px]">
+                <div class="text-xs space-y-2 p-1 min-w-[200px]">
                     <div class="flex items-center space-x-1.5 text-blue-600 font-bold">
                         <i class="fa-solid fa-location-dot"></i>
                         <span>地圖互動選點</span>
                     </div>
-                    <p class="text-[11px] text-slate-700 leading-tight font-medium">${resolvedAddress}</p>
-                    <div class="text-[10px] text-slate-400 font-mono">GPS: ${roundedLat}, ${roundedLng}</div>
+                    <p class="text-[11px] text-slate-600 leading-tight font-medium">${hasStreetAddr ? resolvedAddress : '已鎖定此目標位置，點擊下方按鈕即可建檔並補充門市資訊。'}</p>
                     <button onclick="triggerAddStoreFromMap(${roundedLat}, ${roundedLng}, '${encodedAddress}')" 
                             class="w-full mt-1.5 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-lg font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm transition-all cursor-pointer">
                         <i class="fa-solid fa-plus text-[10px]"></i>
@@ -5071,21 +5091,25 @@
         }
 
         /**
-         * 數值同步器：將精確經緯度回填至表單，並在畫面顯示即時座標
+         * 數值同步器：將精確經緯度回填至新增/確認店家表單欄位與內部記錄
          */
         function updateCoordinateDisplayAndForm(lat, lng, address) {
-            // A. 更新 quick-confirm-modal
+            const isRealStreetAddress = Boolean(
+                address && !address.includes('點擊位置') && !address.includes('已標記地圖位置')
+            );
+
+            // A. 更新 quick-confirm-modal 內部狀態與表單欄位
             if (typeof pendingQuickStore !== 'undefined' && pendingQuickStore) {
                 pendingQuickStore.lat = lat;
                 pendingQuickStore.lng = lng;
                 pendingQuickStore.urlCoords = { lat: lat, lng: lng, source: 'map_pick' };
-                if (address && !address.includes('點擊位置')) {
+                if (isRealStreetAddress) {
                     pendingQuickStore.address = address;
                 }
             }
 
             const confirmAddrInput = document.getElementById('confirm-store-address');
-            if (confirmAddrInput && address && !address.includes('點擊位置')) {
+            if (confirmAddrInput && isRealStreetAddress) {
                 confirmAddrInput.value = address;
             }
 
@@ -5095,15 +5119,15 @@
             const coordsValEl = document.getElementById('confirm-coords-val');
 
             if (coordsStatusEl && coordsTextEl) {
-                coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex items-center justify-between bg-emerald-50 border-emerald-200/80 text-emerald-800";
-                if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs";
+                coordsStatusEl.className = "p-2.5 rounded-xl border text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-emerald-50 border-emerald-200/80 text-emerald-800";
+                if (coordsIconEl) coordsIconEl.className = "fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs mt-0.5 sm:mt-0";
                 coordsTextEl.innerHTML = `🎯 <b>已採用地圖精準標點座標</b>，100% 精準對齊！`;
             }
             if (coordsValEl) {
                 coordsValEl.innerText = `${lat}, ${lng}`;
             }
 
-            // B. 更新 add-store-modal
+            // B. 更新 add-store-modal 表單座標欄位
             const latInput = document.getElementById('new-store-lat');
             const lngInput = document.getElementById('new-store-lng');
             const addrInput = document.getElementById('new-store-address');
@@ -5113,8 +5137,8 @@
             if (lngInput) lngInput.value = lng;
             if (customCoordsWrapper) customCoordsWrapper.classList.remove('hidden');
 
-            if (addrInput && (!addrInput.value || addrInput.value.includes('點擊位置') || addrInput.value.length < 3)) {
-                if (address && !address.includes('點擊位置')) {
+            if (addrInput && (!addrInput.value || addrInput.value.includes('點擊位置') || addrInput.value.includes('已標記地圖位置') || addrInput.value.length < 3)) {
+                if (isRealStreetAddress) {
                     addrInput.value = address;
                 }
             }
