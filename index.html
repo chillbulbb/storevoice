@@ -58,6 +58,7 @@
             width: 100%;
             height: 100%;
             z-index: 1;
+            background-color: #f1f5f9;
         }
 
         /* 自訂地圖 Pin 標記與水波紋脈衝動畫 */
@@ -2672,7 +2673,81 @@
             }
         }
 
-        // 4. 初始化 Leaflet 地圖 (以桃園市為核心，免 Google Maps API Key 即可使用)
+        // 預設淡灰網格圖磚備援（當所有外部圖資短暫無法連線時避免顯示破圖）
+        const MAP_FALLBACK_TILE_SVG = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">' +
+            '<rect width="256" height="256" fill="#f1f5f9"/>' +
+            '<path d="M256 0H0v256" fill="none" stroke="#e2e8f0" stroke-width="1"/>' +
+            '<path d="M128 0v256M0 128h256" fill="none" stroke="#e2e8f0" stroke-width="0.6" stroke-dasharray="4 4"/>' +
+            '</svg>'
+        );
+
+        /** 建立具備單格破圖防護的 Leaflet 圖磚圖層 */
+        function createSafeTileLayer(urlTemplate, options = {}) {
+            return L.tileLayer(urlTemplate, {
+                errorTileUrl: MAP_FALLBACK_TILE_SVG,
+                keepBuffer: 2,
+                updateWhenIdle: true,
+                ...options
+            });
+        }
+
+        /** 顯示簡潔的非干擾式地圖圖資備援提示 */
+        function showMapTileFallbackNotice(message) {
+            const wrapper = document.getElementById('map-wrapper');
+            if (!wrapper) return;
+            let notice = document.getElementById('map-tile-fallback-notice');
+            if (!notice) {
+                notice = document.createElement('div');
+                notice.id = 'map-tile-fallback-notice';
+                notice.className = 'absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-slate-900/90 text-white text-[11px] font-medium px-3 py-1.5 rounded-full shadow-md flex items-center space-x-1.5 pointer-events-none transition-opacity duration-300 whitespace-nowrap';
+                wrapper.appendChild(notice);
+            }
+            notice.innerHTML = `<i class="fa-solid fa-shield-halved text-amber-300"></i><span>${message}</span>`;
+            notice.style.opacity = '1';
+            clearTimeout(notice._hideTimer);
+            notice._hideTimer = setTimeout(() => {
+                notice.style.opacity = '0';
+            }, 3200);
+        }
+
+        /** 為圖磚圖層綁定失敗偵測與自動切換預設圖資之備援機制 */
+        function attachTileFailover(primaryLayer, fallbackLayer, threshold = 3, windowMs = 5000) {
+            let errorTimestamps = [];
+            let hasSwitched = false;
+
+            primaryLayer.on('add', () => {
+                hasSwitched = false;
+                errorTimestamps = [];
+            });
+
+            primaryLayer.on('tileload', () => {
+                if (errorTimestamps.length > 0) errorTimestamps = [];
+            });
+
+            primaryLayer.on('tileerror', () => {
+                if (hasSwitched || !map || !map.hasLayer(primaryLayer)) return;
+                const now = Date.now();
+                errorTimestamps = errorTimestamps.filter(ts => now - ts <= windowMs);
+                errorTimestamps.push(now);
+
+                if (errorTimestamps.length >= threshold) {
+                    hasSwitched = true;
+                    console.warn("⚠️ [Map Tiles] 主要圖資連續載入異常，自動切換至穩定備援預設圖面 (OSM)");
+                    map.removeLayer(primaryLayer);
+                    if (!map.hasLayer(fallbackLayer)) {
+                        fallbackLayer.addTo(map);
+                    }
+                    showMapTileFallbackNotice("圖資連線異常，已自動切換至穩定備援地圖");
+                }
+            });
+
+            fallbackLayer.on('tileerror', () => {
+                console.warn("⚠️ [Map Tiles] 備援圖資單格載入失敗，已由安全預設網格補位");
+            });
+        }
+
+        // 4. 初始化 Leaflet 地圖 (精簡保留最穩定之標準地圖並內建自動備援機制)
         function initMap() {
             map = L.map('map', {
                 zoomControl: true,
@@ -2680,27 +2755,26 @@
             }).setView([24.9750, 121.2750], 12);
             window.map = map; // 確保全域掛載，讓選點與標記能隨時訪問
 
-            const googleRoadmap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            // 主力核心標準圖資 (啟用 mt0~mt3 多通道負載平衡)
+            const standardMapLayer = createSafeTileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
             });
 
-            const cartoVoyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 19,
-                subdomains: 'abcd'
+            // 自動備援預設圖資 (高穩定 OpenStreetMap 標準街道圖)
+            const fallbackDefaultLayer = createSafeTileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxNativeZoom: 19,
+                maxZoom: 20
             });
 
-            const osmStandard = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19
-            });
+            attachTileFailover(standardMapLayer, fallbackDefaultLayer);
+            standardMapLayer.addTo(map);
 
-            googleRoadmap.addTo(map);
-
+            // 精簡切換選單：僅保留最核心、最穩定的標準地圖與預設街道備援模式
             L.control.layers({
-                "Google 街景圖 (免Key)": googleRoadmap,
-                "Carto 現代清新圖": cartoVoyager,
-                "OpenStreetMap": osmStandard
-            }, null, { position: 'topright' }).addTo(map);
+                "標準街景地圖": standardMapLayer,
+                "預設街道備援 (OSM)": fallbackDefaultLayer
+            }, null, { position: 'topright', collapsed: true }).addTo(map);
 
             const wrapper = document.getElementById('map-wrapper');
             if (window.ResizeObserver && wrapper) {
