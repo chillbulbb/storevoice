@@ -162,6 +162,19 @@
             scroll-behavior: smooth;
         }
 
+        /* 行動端彈性捲動與動態視窗高度防護 */
+        html,
+        body {
+            height: 100dvh;
+            max-height: 100dvh;
+            overscroll-behavior: none;
+        }
+
+        .touch-scroll {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+        }
+
         /* RWD 行動端視圖切換：CSS 隔離策略，確保桌面端 (>= md) 永不破版 */
         @media (max-width: 767px) {
             .mobile-view-map #dashboard-section {
@@ -171,11 +184,66 @@
             .mobile-view-report #map-section {
                 display: none !important;
             }
+
+            header {
+                flex-wrap: wrap !important;
+                gap: 0.45rem !important;
+                padding: 0.55rem 0.75rem !important;
+            }
+
+            #main-container {
+                min-height: 0 !important;
+                flex: 1 1 0% !important;
+            }
+
+            #map-section,
+            #dashboard-section {
+                height: 100% !important;
+                min-height: 0 !important;
+            }
+
+            #dashboard-section {
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior-y: contain;
+                padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px)) !important;
+            }
+
+            #add-store-form,
+            #quick-confirm-body,
+            #delete-store-modal-panel,
+            #export-modal-panel {
+                max-height: 90dvh;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior-y: contain;
+            }
+
+            /* 防止 iOS Safari 點擊輸入框時自動放大視窗 */
+            input:not([type="checkbox"]):not([type="radio"]),
+            select,
+            textarea {
+                font-size: 16px !important;
+            }
+
+            .leaflet-popup-content-wrapper {
+                max-width: min(86vw, 300px) !important;
+            }
+
+            .leaflet-popup-content {
+                margin: 10px 12px !important;
+                max-height: 55dvh;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            nav[aria-label="行動端切換"] {
+                bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+            }
         }
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800 flex flex-col h-screen overflow-hidden antialiased">
+<body class="bg-gray-50 text-gray-800 flex flex-col h-[100dvh] max-h-[100dvh] overflow-hidden antialiased">
 
     <!-- 頂部導覽列 -->
     <header
@@ -250,20 +318,20 @@
 
         <!-- 左半邊：搜尋與地圖區 -->
         <section id="map-section"
-            class="w-full md:w-1/2 flex flex-col border-r border-gray-200 bg-white h-full relative overflow-hidden">
+            class="w-full md:w-1/2 flex flex-col border-r border-gray-200 bg-white h-full min-h-0 relative overflow-hidden">
             <!-- 搜尋與篩選列 -->
-            <div class="p-3.5 md:p-4 border-b border-gray-200 bg-gray-50 space-y-2.5 shrink-0">
+            <div class="p-3 md:p-4 border-b border-gray-200 bg-gray-50 space-y-2.5 shrink-0">
                 <!-- 🚀 殺手級功能：一鍵貼上 Google Maps 網址或商家資訊自動分析 -->
                 <div class="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-2.5 md:p-3 rounded-2xl shadow-sm text-white">
-                    <div class="flex items-center justify-between mb-1.5 px-0.5">
+                    <div class="flex items-center justify-between gap-2 mb-1.5 px-0.5">
                         <div class="flex items-center space-x-1.5 text-xs font-bold tracking-wide">
                             <i class="fa-solid fa-wand-magic-sparkles text-amber-300 animate-pulse"></i>
                             <span>AI 智能一鍵建檔與分析</span>
                         </div>
-                        <span class="text-[10px] bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full font-medium text-blue-100">支援 Google Maps 網址</span>
+                        <span class="text-[10px] bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full font-medium text-blue-100 shrink-0">支援 Google Maps 網址</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <div class="relative flex-1">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                        <div class="relative flex-1 min-w-0">
                             <i class="fa-solid fa-link absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input id="quick-url-input" type="text"
                                 placeholder="🔗 貼上 Google Maps 網址或輸入店家名稱與地址..."
@@ -272,13 +340,13 @@
                         </div>
                         <button id="quick-url-btn" onclick="handleQuickAnalyzeFromUrl()"
                             title="由 Gemini 自動萃取商家資訊並生成完整分析報告"
-                            class="px-3.5 py-2 min-h-[38px] bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-900 rounded-xl text-xs font-bold transition shadow-sm flex items-center space-x-1 shrink-0 cursor-pointer">
+                            class="px-3.5 py-2 min-h-[40px] bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-900 rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1 shrink-0 cursor-pointer">
                             <span id="quick-url-btn-text">一鍵分析</span>
                             <i class="fa-solid fa-bolt text-amber-600"></i>
                         </button>
                     </div>
-                    <p class="text-[10px] text-blue-100/90 mt-1.5 flex items-center">
-                        <i class="fa-solid fa-lightbulb text-amber-300 mr-1 shrink-0"></i>
+                    <p class="text-[10px] text-blue-100/90 mt-1.5 flex items-start sm:items-center leading-snug">
+                        <i class="fa-solid fa-lightbulb text-amber-300 mr-1 mt-0.5 sm:mt-0 shrink-0"></i>
                         <span>支援網址直接萃取 @lat,lng；若地址定位有落差，可直接在地圖上點擊正確位置來精準對齊。</span>
                     </p>
                 </div>
@@ -355,13 +423,13 @@
 
             <!-- 地圖本體容器 (手機端與桌面端皆彈性填滿 flex-1，確保地圖視角開闊) -->
             <div id="map-wrapper"
-                class="w-full flex-1 relative shrink-0 overflow-hidden min-h-[260px]">
+                class="w-full flex-1 relative min-h-[220px] overflow-hidden">
                 <div id="map"></div>
 
                 <!-- 微型浮動切換膠囊按鈕 (預設顯示，展開時隱藏，讓使用者第一眼看到完整乾淨的地圖) -->
                 <button id="store-drawer-pill-btn" onclick="toggleStoreCardsDrawer(true)"
                     title="點擊展開店家切換清單"
-                    class="absolute bottom-20 md:bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md hover:bg-white text-slate-700 px-3 py-1.5 rounded-xl shadow-lg border border-slate-200/90 flex items-center space-x-2 text-xs font-semibold transition-all hover:shadow-xl active:scale-95 cursor-pointer group">
+                    class="absolute bottom-24 md:bottom-4 left-4 z-[1000] bg-white/95 backdrop-blur-md hover:bg-white text-slate-700 px-3 py-1.5 rounded-xl shadow-lg border border-slate-200/90 flex items-center space-x-2 text-xs font-semibold transition-all hover:shadow-xl active:scale-95 cursor-pointer group">
                     <span class="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
                     <i class="fa-solid fa-store text-blue-600 text-xs"></i>
                     <span>切換店家清單</span>
@@ -371,7 +439,7 @@
 
                 <!-- 店家切換卡片區域 (精巧尺寸、卡片緊湊化，預設完全收合隱藏，點擊按鈕展開) -->
                 <div id="store-cards-container"
-                    class="hidden p-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 absolute bottom-20 md:bottom-4 left-4 max-w-[calc(100vw-2rem)] sm:max-w-md md:max-w-lg z-[1000] transition-all duration-300">
+                    class="hidden p-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 absolute bottom-24 md:bottom-4 left-4 max-w-[calc(100vw-2rem)] sm:max-w-md md:max-w-lg z-[1000] transition-all duration-300">
                     <div class="flex justify-between items-center mb-1.5 px-0.5">
                         <p class="text-[11px] font-semibold text-slate-600 uppercase tracking-wider flex items-center">
                             <i class="fa-solid fa-arrows-left-right mr-1.5 text-blue-500"></i>
@@ -398,37 +466,43 @@
 
         <!-- 右半邊：AI 分析報告面板 (DashBoard) -->
         <section id="dashboard-section"
-            class="w-full md:w-1/2 min-w-0 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6 bg-slate-50/50 space-y-6 h-full">
+            class="w-full md:w-1/2 min-w-0 overflow-y-auto touch-scroll p-3.5 sm:p-4 md:p-6 pb-32 md:pb-6 bg-slate-50/50 space-y-5 h-full">
 
             <div id="dashboard-content" class="w-full min-w-0 space-y-5">
-                <!-- 店家標題資訊區 (純白極簡) -->
+                <!-- 店家標題資訊區 (純白極簡 ＋ 獨立動態縮圖) -->
                 <div
-                    class="w-full bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-start overflow-hidden">
-                    <div class="min-w-0 pr-3">
-                        <div class="flex items-center space-x-2 mb-1.5">
-                            <span id="report-category"
-                                class="bg-blue-50 text-blue-700 text-xs px-2.5 py-0.5 rounded-full font-semibold border border-blue-200">燒肉/鍋物</span>
-                            <span
-                                class="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-medium flex items-center border border-emerald-200">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>AI 語意分析完成
-                            </span>
-                        </div>
-                        <h2 id="report-title"
-                            class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight truncate">相演無煙燒肉 (大興旗艦店)
-                        </h2>
-                        <p id="report-address" class="text-xs text-slate-500 mt-1 flex items-center truncate">
-                            <i class="fa-solid fa-location-dot text-blue-600 mr-1.5 shrink-0"></i>
-                            <span class="truncate">桃園市桃園區大興路136號 (近大有商圈)</span>
-                        </p>
-                        <div class="flex items-center space-x-3 mt-3">
-                            <span id="report-stars" class="text-amber-500 font-bold text-base flex items-center">
-                                <i class="fa-solid fa-star mr-1 text-sm"></i>4.6
-                            </span>
-                            <span id="report-reviews" class="text-xs text-slate-500 font-medium">(4,852 則 Google
-                                評價)</span>
+                    class="w-full bg-white p-4 sm:p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start gap-3.5 sm:gap-4 overflow-hidden">
+                    <div class="flex items-start gap-3 sm:gap-3.5 min-w-0 w-full sm:flex-1">
+                        <img id="report-store-thumb"
+                            src="https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=360&auto=format&fit=crop&q=80"
+                            alt="店家縮圖"
+                            class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0 bg-slate-100">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center flex-wrap gap-1.5 mb-1.5">
+                                <span id="report-category"
+                                    class="bg-blue-50 text-blue-700 text-xs px-2.5 py-0.5 rounded-full font-semibold border border-blue-200">燒肉/鍋物</span>
+                                <span
+                                    class="bg-emerald-50 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-medium flex items-center border border-emerald-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>AI 語意分析完成
+                                </span>
+                            </div>
+                            <h2 id="report-title"
+                                class="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 tracking-tight break-words">相演無煙燒肉 (大興旗艦店)
+                            </h2>
+                            <p id="report-address" class="text-xs text-slate-500 mt-1 flex items-start sm:items-center break-words">
+                                <i class="fa-solid fa-location-dot text-blue-600 mr-1.5 mt-0.5 sm:mt-0 shrink-0"></i>
+                                <span class="break-words">桃園市桃園區大興路136號 (近大有商圈)</span>
+                            </p>
+                            <div class="flex items-center space-x-3 mt-2.5">
+                                <span id="report-stars" class="text-amber-500 font-bold text-base flex items-center">
+                                    <i class="fa-solid fa-star mr-1 text-sm"></i>4.6
+                                </span>
+                                <span id="report-reviews" class="text-xs text-slate-500 font-medium">(4,852 則 Google
+                                    評價)</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2 shrink-0 flex-wrap gap-y-2 justify-end">
+                    <div class="flex items-center gap-2 shrink-0 flex-wrap w-full sm:w-auto justify-start sm:justify-end">
                         <!-- Google Gemini AI 深度分析按鈕 -->
                         <button id="gemini-analyze-btn" onclick="triggerGeminiAnalysis()"
                             title="使用 Google Gemini 即時生成深度評論與營運報告"
@@ -926,8 +1000,8 @@
                                 <span class="text-[11px] text-slate-400">POS 門市客流與 Google 評論交叉驗證</span>
                             </div>
 
-                            <!-- 效益核心指標三欄 (純白底) -->
-                            <div class="grid grid-cols-3 gap-2.5">
+                            <!-- 效益核心指標三欄 (純白底，手機自動單欄堆疊免擠壓) -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                                 <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
                                     <div class="text-[11px] text-slate-500 font-medium">預估來客數提升</div>
                                     <div id="roi-growth-rate"
@@ -958,9 +1032,9 @@
                                     <canvas id="roiGrowthChart" class="w-full h-full block"></canvas>
                                 </div>
                                 <div
-                                    class="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
-                                    <span id="roi-insight-text" class="flex items-center text-xs">
-                                        <i class="fa-solid fa-lightbulb text-blue-600 mr-1.5 shrink-0"></i>
+                                    class="pt-2 border-t border-slate-100 flex items-start justify-between text-[11px] text-slate-600">
+                                    <span id="roi-insight-text" class="flex items-start text-xs leading-relaxed">
+                                        <i class="fa-solid fa-lightbulb text-blue-600 mr-1.5 mt-0.5 shrink-0"></i>
                                         <span>Phase 1 招牌特色文案吸引新客 +18.5%，搭配 Phase 2 負評痛點修復拉升回訪率 +13.5%，整體來客成長
                                             +32.0%。</span>
                                     </span>
@@ -973,24 +1047,24 @@
 
         </section>
 
-        <!-- 行動端底部浮動視圖切換 Bar (僅在 < md 顯示，寬度加長、上下兩列顯示更舒適) -->
-        <nav aria-label="行動端切換"
-            class="md:hidden fixed bottom-3 left-1/2 -translate-x-1/2 z-[1100] w-[92%] max-w-[390px] bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl flex items-center justify-between gap-2 border border-slate-700/80">
-            <button id="tab-map-btn" onclick="switchMobileTab('map')"
-                class="flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center bg-blue-600 text-white transition-all shadow-md">
-                <span class="flex items-center justify-center space-x-1.5 leading-tight">
+        <!-- 行動端底部浮動視圖切換 Bar (僅在 < md 顯示，Safe Area 防護 + 防遮擋) -->
+        <nav aria-label="行動端切換" role="tablist"
+            class="md:hidden fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-[1100] w-[92%] max-w-[390px] bg-slate-900/95 backdrop-blur-md p-1.5 rounded-2xl shadow-2xl flex items-center justify-between gap-2 border border-slate-700/80">
+            <button id="tab-map-btn" type="button" role="tab" aria-pressed="true" onclick="switchMobileTab('map')"
+                class="flex-1 min-h-[48px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center bg-blue-600 text-white transition-all shadow-md cursor-pointer">
+                <span class="flex items-center justify-center space-x-1.5 leading-tight whitespace-nowrap">
                     <i class="fa-solid fa-map-location-dot text-sm"></i>
                     <span class="text-xs font-bold">地圖探索</span>
                 </span>
-                <span class="text-[10px] text-blue-100 font-normal leading-tight mt-0.5">商圈定位與店家</span>
+                <span class="text-[10px] text-blue-100 font-normal leading-tight mt-0.5 whitespace-nowrap">商圈定位與店家</span>
             </button>
-            <button id="tab-report-btn" onclick="switchMobileTab('report')"
-                class="flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all">
-                <span class="flex items-center justify-center space-x-1.5 leading-tight">
+            <button id="tab-report-btn" type="button" role="tab" aria-pressed="false" onclick="switchMobileTab('report')"
+                class="flex-1 min-h-[48px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer">
+                <span class="flex items-center justify-center space-x-1.5 leading-tight whitespace-nowrap">
                     <i class="fa-solid fa-chart-pie text-sm"></i>
                     <span class="text-xs font-bold">AI 分析報告</span>
                 </span>
-                <span class="text-[10px] text-slate-400 font-normal leading-tight mt-0.5">診斷 · 公關 · 對標</span>
+                <span class="text-[10px] text-slate-400 font-normal leading-tight mt-0.5 whitespace-nowrap">診斷 · 公關 · 對標</span>
             </button>
         </nav>
     </main>
@@ -1091,9 +1165,9 @@
 
     <!-- 🚀 AI 商家資訊預覽確認與微調 Modal (Human-in-the-loop) -->
     <div id="quick-confirm-modal" onclick="onQuickConfirmBackdropClick(event)"
-        class="fixed inset-0 z-[2100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs opacity-0 pointer-events-none transition-all duration-200">
+        class="fixed inset-0 z-[2100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs opacity-0 pointer-events-none transition-all duration-200">
         <div id="quick-confirm-panel"
-            class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200 flex flex-col">
+            class="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90dvh] overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200 flex flex-col">
             <!-- Modal Header -->
             <div class="px-5 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center shrink-0">
                 <div class="flex items-center space-x-2">
@@ -1106,13 +1180,13 @@
                     </div>
                 </div>
                 <button type="button" onclick="closeQuickConfirmModal()"
-                    class="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition">
+                    class="text-white/80 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition">
                     <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
 
-            <!-- Modal Body -->
-            <div class="p-5 space-y-3.5 text-xs">
+            <!-- Modal Body (支援手機彈性捲動) -->
+            <div id="quick-confirm-body" class="p-4 sm:p-5 space-y-3.5 text-xs overflow-y-auto flex-1 touch-scroll">
                 <div>
                     <label class="block font-semibold text-slate-700 mb-1">
                         餐廳名稱 <span class="text-rose-500">*</span>
@@ -1125,12 +1199,12 @@
                 </div>
 
                 <div>
-                    <div class="flex justify-between items-center mb-1">
+                    <div class="flex justify-between items-center gap-2 mb-1">
                         <label class="font-semibold text-slate-700">
                             門市詳細地址 <span class="text-rose-500">*</span>
                         </label>
                         <button type="button" onclick="startMapPicker('quick-confirm')"
-                            class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition shadow-xs active:scale-95">
+                            class="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center space-x-1 cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition shadow-xs active:scale-95 shrink-0">
                             <i class="fa-solid fa-location-crosshairs text-indigo-500"></i>
                             <span>在地圖上標點</span>
                         </button>
@@ -1141,13 +1215,13 @@
                             placeholder="例如：桃園市桃園區大興西路二段268號"
                             class="w-full pl-8 pr-3 py-2 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs text-slate-800 bg-blue-50/30 font-medium">
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1 flex items-center">
-                        <i class="fa-solid fa-lightbulb text-amber-500 mr-1 shrink-0"></i>
+                    <p class="text-[10px] text-slate-400 mt-1 flex items-start sm:items-center">
+                        <i class="fa-solid fa-lightbulb text-amber-500 mr-1 mt-0.5 sm:mt-0 shrink-0"></i>
                         <span>若地址定位有落差，可直接點擊「在地圖上標點」來精準對齊。</span>
                     </p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block font-semibold text-slate-700 mb-1">料理分類</label>
                         <select id="confirm-store-category"
@@ -1171,12 +1245,12 @@
 
                 <!-- 座標解析狀態提示 -->
                 <div id="confirm-coords-status"
-                    class="p-2.5 rounded-xl border text-[11px] flex items-center justify-between bg-emerald-50 border-emerald-200/80 text-emerald-800">
-                    <div class="flex items-center space-x-2">
-                        <i id="confirm-coords-icon" class="fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs"></i>
+                    class="p-2.5 rounded-xl border text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 bg-emerald-50 border-emerald-200/80 text-emerald-800">
+                    <div class="flex items-start sm:items-center space-x-2">
+                        <i id="confirm-coords-icon" class="fa-solid fa-location-crosshairs text-emerald-600 shrink-0 text-xs mt-0.5 sm:mt-0"></i>
                         <span id="confirm-coords-status-text">已由 Google Maps 網址直取精準 GPS 座標</span>
                     </div>
-                    <span id="confirm-coords-val" class="font-mono text-[10px] bg-white/90 px-2 py-0.5 rounded border border-emerald-200/80 font-bold shrink-0 ml-1"></span>
+                    <span id="confirm-coords-val" class="font-mono text-[10px] bg-white/90 px-2 py-0.5 rounded border border-emerald-200/80 font-bold shrink-0 self-start sm:self-auto"></span>
                 </div>
 
                 <div class="p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-800 flex items-start space-x-2">
@@ -1185,13 +1259,13 @@
                 </div>
 
                 <!-- 按鈕區 -->
-                <div class="pt-2 flex justify-end space-x-2">
+                <div class="pt-2 flex flex-wrap justify-end gap-2">
                     <button type="button" onclick="closeQuickConfirmModal()"
-                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-medium transition cursor-pointer">
+                        class="px-4 py-2 min-h-[40px] bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-medium transition cursor-pointer">
                         取消
                     </button>
                     <button type="button" id="confirm-and-save-btn" onclick="executeFinalQuickSave()"
-                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer active:scale-95">
+                        class="px-4 py-2 min-h-[40px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold transition shadow-sm flex items-center space-x-1.5 cursor-pointer active:scale-95">
                         <i class="fa-solid fa-check"></i>
                         <span>確認無誤並分析</span>
                     </button>
@@ -1202,9 +1276,9 @@
 
     <!-- 老闆新增餐廳 Modal (寫入 Firebase Cloud Firestore) -->
     <div id="add-store-modal" onclick="onAddStoreBackdropClick(event)"
-        class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
+        class="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
         <div id="add-store-modal-panel"
-            class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200 max-h-[90vh] flex flex-col">
+            class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 transform scale-95 transition-all duration-200 max-h-[90dvh] flex flex-col">
             <!-- Modal 頂部 Header -->
             <div class="px-5 py-4 bg-blue-600 text-white flex justify-between items-center shrink-0">
                 <div class="flex items-center space-x-2.5">
@@ -1224,18 +1298,18 @@
 
             <!-- Modal 表單內容 -->
             <form id="add-store-form" onsubmit="handleCreateStore(event)"
-                class="p-5 space-y-3.5 overflow-y-auto flex-1 text-xs">
+                class="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 touch-scroll text-xs">
                 <!-- ✨ Modal 快捷 AI 解析貼上列 -->
                 <div class="p-3 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-xl border border-blue-200/80 mb-3 space-y-2">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2">
                         <span class="font-bold text-blue-900 flex items-center space-x-1.5 text-xs">
                             <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i>
                             <span>AI 智能一鍵解析自動填入與建檔</span>
                         </span>
-                        <span class="text-[10px] text-blue-600 bg-white/80 px-2 py-0.5 rounded-full font-medium">支援 Google Maps 網址</span>
+                        <span class="text-[10px] text-blue-600 bg-white/80 px-2 py-0.5 rounded-full font-medium shrink-0">支援 Google Maps 網址</span>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <div class="relative flex-1">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                        <div class="relative flex-1 min-w-0">
                             <i class="fa-solid fa-link absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input id="modal-quick-url-input" type="text"
                                 placeholder="🔗 貼上 Google Maps 網址或店家名稱地址..."
@@ -1243,7 +1317,7 @@
                                 class="w-full pl-7 pr-2 py-1.5 bg-white border border-blue-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner">
                         </div>
                         <button type="button" id="modal-quick-url-btn" onclick="handleQuickAnalyzeFromUrl(true)"
-                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center space-x-1 shrink-0 cursor-pointer">
+                            class="px-3 py-2 sm:py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1 shrink-0 cursor-pointer">
                             <span id="modal-quick-btn-text">一鍵分析</span>
                             <i class="fa-solid fa-bolt text-amber-300 text-[10px]"></i>
                         </button>
@@ -1262,7 +1336,7 @@
                         class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block font-semibold text-slate-700 mb-1">料理分類 <span
                                 class="text-rose-500">*</span></label>
@@ -1285,7 +1359,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block font-semibold text-slate-700 mb-1">Google 評論數</label>
                         <input id="new-store-reviews" type="text" value="1,200" required placeholder="例如：1,250"
@@ -2525,8 +2599,18 @@
             });
         };
 
-        // 異步讀取 stores.json (資料與介面分離策略)
+        // 異步讀取 stores.json (資料與介面分離策略，並即時補齊獨立縮圖與公關/對標資料)
         async function loadStoresData() {
+            const finalizeLoadedStores = (rawList, badgeLabel, isConnected) => {
+                const normalized = (Array.isArray(rawList) ? rawList : [])
+                    .filter(Boolean)
+                    .map(s => ensureStoreCompleteData(s));
+                resolveUniqueStoreImages(normalized);
+                storesData = normalized;
+                filteredStores = [...storesData];
+                updateDataSourceBadge(badgeLabel, isConnected);
+            };
+
             // 1. 優先嘗試從 Firebase Cloud Firestore 讀取 'stores' 集合
             if (window.db) {
                 try {
@@ -2543,10 +2627,8 @@
                             });
                         });
                         if (cloudStores.length > 0) {
-                            storesData = cloudStores;
-                            filteredStores = [...storesData];
+                            finalizeLoadedStores(cloudStores, 'Firestore 雲端 (' + cloudStores.length + ' 家)', true);
                             console.log("✅ [StoreVoice] 成功從 Cloud Firestore 載入 " + storesData.length + " 間店家資料！");
-                            updateDataSourceBadge('Firestore 雲端 (' + storesData.length + ' 家)', true);
                             return;
                         }
                     } else {
@@ -2563,10 +2645,8 @@
                 if (response.ok) {
                     const data = await response.json();
                     if (Array.isArray(data) && data.length > 0) {
-                        storesData = data;
-                        filteredStores = [...storesData];
+                        finalizeLoadedStores(data, 'stores.json (' + data.length + ' 家)', true);
                         console.log("✅ [StoreVoice] 成功從 stores.json 載入 " + storesData.length + " 家店家");
-                        updateDataSourceBadge('stores.json (' + storesData.length + ' 家)', true);
                         return;
                     }
                 }
@@ -2575,9 +2655,7 @@
             }
 
             // 3. 最終離線備援
-            storesData = [...fallbackStoresData];
-            filteredStores = [...storesData];
-            updateDataSourceBadge('本地備援 (' + storesData.length + ' 家)', false);
+            finalizeLoadedStores(fallbackStoresData.map(s => ({ ...s })), '本地備援 (' + fallbackStoresData.length + ' 家)', false);
         }
 
         // 更新頂部連線燈號
@@ -2656,15 +2734,382 @@
             });
         }
 
-        // 餐廳分類縮圖預設表 (精選高品質美食縮圖)
-        const CATEGORY_THUMBNAILS = {
-            '燒肉/鍋物': 'https://images.unsplash.com/photo-1544025162-d76694265947?w=360&auto=format&fit=crop&q=80',
-            '日式料理': 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=360&auto=format&fit=crop&q=80',
-            '甜點/咖啡': 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=360&auto=format&fit=crop&q=80',
-            '美式漢堡': 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=360&auto=format&fit=crop&q=80',
-            '中式餐館': 'https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=360&auto=format&fit=crop&q=80',
-            'default': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=360&auto=format&fit=crop&q=80'
+        // 餐廳分類動態縮圖庫 (18 組互不重複的高畫質真實美食/餐飲實拍 + SVG 安全備援，確保每家店擁有獨立視覺縮圖)
+        const LEGACY_GENERIC_THUMBS = new Set([
+            'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=360&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1544025162-d76694265947?w=360&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=360&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=360&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=360&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=360&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=360&auto=format&fit=crop&q=80'
+        ]);
+
+        const STORE_IMAGE_POOLS = {
+            bbq: [
+                'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1544025162-d76694265947?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1606066889831-35faf6fa6ff6?w=480&auto=format&fit=crop&q=80'
+            ],
+            hotpot: [
+                'https://images.unsplash.com/photo-1762305196033-15c8ab8f3b61?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=480&auto=format&fit=crop&q=80'
+            ],
+            dessert: [
+                'https://images.unsplash.com/photo-1752230343681-9ef27ef18a04?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1747092485234-ab75ab29040f?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1520209268518-aec60b8bb5ca?w=480&auto=format&fit=crop&q=80'
+            ],
+            cafe: [
+                'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1556742205-e10c9486e506?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1520209268518-aec60b8bb5ca?w=480&auto=format&fit=crop&q=80'
+            ],
+            japanese: [
+                'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1654912911907-f0a65a5c0fb0?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1754197531057-1436e706e040?w=480&auto=format&fit=crop&q=80'
+            ],
+            chinese: [
+                'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=480&auto=format&fit=crop&q=80'
+            ],
+            hongkong: [
+                'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1541544741938-0af808871cc0?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=480&auto=format&fit=crop&q=80'
+            ],
+            western: [
+                'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1621996346565-e3d5d6281298?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1544025162-d76694265947?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1606066889831-35faf6fa6ff6?w=480&auto=format&fit=crop&q=80'
+            ],
+            default: [
+                'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1556742205-e10c9486e506?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1621996346565-e3d5d6281298?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=480&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=480&auto=format&fit=crop&q=80'
+            ]
         };
+
+        const ALL_STORE_IMAGE_URLS = Array.from(new Set(Object.values(STORE_IMAGE_POOLS).flat()));
+
+        function stableStoreHash(str) {
+            let hash = 2166136261;
+            const s = String(str || 'store');
+            for (let i = 0; i < s.length; i++) {
+                hash ^= s.charCodeAt(i);
+                hash = Math.imul(hash, 16777619);
+            }
+            return hash >>> 0;
+        }
+
+        function detectImagePoolKey(store) {
+            const text = `${store?.category || ''} ${store?.name || ''} ${store?.signatureDish || ''} ${store?.imageKeywords || ''}`.toLowerCase();
+            if (/冰|雪花|刨冰|豆花|甜品|甜點|蛋糕|鬆餅|霜淇淋|奶酪/.test(text)) return 'dessert';
+            if (/港式|港點|茶餐廳|飲茶|燒臘|菠蘿油/.test(text)) return 'hongkong';
+            if (/燒肉|烤肉|燒烤|串燒|炭火/.test(text)) return 'bbq';
+            if (/火鍋|鍋物|麻辣鍋|酸菜魚|薑母鴨|涮涮鍋/.test(text)) return 'hotpot';
+            if (/咖啡|拿鐵|早午餐|brunch|茶飲|手搖|烘焙|輕食/.test(text)) return 'cafe';
+            if (/日料|日式|壽司|刺身|拉麵|居酒屋|生魚片|丼飯|和食/.test(text)) return 'japanese';
+            if (/漢堡|牛排|義式|義大利麵|餐酒|披薩|燉飯|bistro|pizza|burger/.test(text)) return 'western';
+            if (/米干|中式|江浙|小吃|牛肉麵|湯包|麵|飯|水餃|熱炒|臺菜|台菜/.test(text)) return 'chinese';
+            return 'default';
+        }
+
+        function buildStoreFallbackSvg(store) {
+            const palettes = [
+                ['#1d4ed8', '#312e81'],
+                ['#0f766e', '#115e59'],
+                ['#b45309', '#78350f'],
+                ['#be123c', '#881337'],
+                ['#4338ca', '#1e1b4b'],
+                ['#0369a1', '#0c4a6e']
+            ];
+            const hash = stableStoreHash(`${store?.id || ''}|${store?.name || ''}`);
+            const [c1, c2] = palettes[hash % palettes.length];
+            const rawTitle = (store?.name || 'SV').replace(/[<>&"']/g, '').trim();
+            const badge = rawTitle.slice(0, 2) || '店聲';
+            const cat = (store?.category || '精選餐飲').replace(/[<>&"']/g, '').slice(0, 10);
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/></linearGradient></defs><rect width="360" height="240" fill="url(#g)"/><circle cx="305" cy="48" r="56" fill="rgba(255,255,255,0.08)"/><circle cx="52" cy="200" r="68" fill="rgba(255,255,255,0.06)"/><text x="180" y="118" text-anchor="middle" fill="#ffffff" font-family="system-ui,-apple-system,sans-serif" font-size="44" font-weight="800">${badge}</text><text x="180" y="156" text-anchor="middle" fill="rgba(255,255,255,0.85)" font-family="system-ui,-apple-system,sans-serif" font-size="16" font-weight="600">${cat}</text></svg>`;
+            return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+        }
+
+        function assignUniqueImageForStore(store, usedUrls = new Set()) {
+            if (!store) return buildStoreFallbackSvg(store);
+            const existing = typeof store.image === 'string' ? store.image.trim() : '';
+            if (existing && !LEGACY_GENERIC_THUMBS.has(existing) && !usedUrls.has(existing)) {
+                usedUrls.add(existing);
+                return existing;
+            }
+            const poolKey = detectImagePoolKey(store);
+            const primaryPool = STORE_IMAGE_POOLS[poolKey] || STORE_IMAGE_POOLS.default;
+            const candidates = Array.from(new Set([...primaryPool, ...ALL_STORE_IMAGE_URLS]));
+            const startIdx = stableStoreHash(`${store.id || ''}|${store.name || ''}|${store.address || ''}`) % primaryPool.length;
+            for (let i = 0; i < candidates.length; i++) {
+                const url = candidates[(startIdx + i) % candidates.length];
+                if (!usedUrls.has(url)) {
+                    usedUrls.add(url);
+                    store.image = url;
+                    return url;
+                }
+            }
+            const svgUrl = buildStoreFallbackSvg(store);
+            store.image = svgUrl;
+            usedUrls.add(svgUrl);
+            return svgUrl;
+        }
+
+        function resolveUniqueStoreImages(storesList) {
+            if (!Array.isArray(storesList)) return;
+            const usedUrls = new Set();
+            storesList.forEach(store => {
+                if (store) assignUniqueImageForStore(store, usedUrls);
+            });
+        }
+
+        function getUniqueStoreImage(store) {
+            if (!store) return STORE_IMAGE_POOLS.default[0];
+            if (store.image && typeof store.image === 'string') return store.image;
+            const usedUrls = new Set((storesData || []).map(s => s && s !== store ? s.image : null).filter(Boolean));
+            return assignUniqueImageForStore(store, usedUrls);
+        }
+
+        function handleStoreThumbError(imgEl, storeId) {
+            if (!imgEl || imgEl.dataset.fallbackApplied === '1') return;
+            imgEl.dataset.fallbackApplied = '1';
+            const store = (storesData || []).find(s => s.id === storeId) || { id: storeId, name: imgEl.alt || 'StoreVoice' };
+            imgEl.src = buildStoreFallbackSvg(store);
+        }
+        window.handleStoreThumbError = handleStoreThumbError;
+
+        function extractDistrictFromAddress(address) {
+            const addr = String(address || '');
+            const distInCity = addr.match(/(?:縣|市)([^\s\d]+?區)/);
+            if (distInCity && distInCity[1]) return distInCity[1];
+            const subMatch = addr.match(/(?:縣|市)([^\s\d]+?[鄉鎮市])/);
+            if (subMatch && subMatch[1]) return subMatch[1];
+            const distMatch = addr.match(/([^\s\d縣市]+?[區鄉鎮])/);
+            return distMatch ? distMatch[1] : '鄰近商圈';
+        }
+
+        function buildDynamicPainPoints(category, signatureDish) {
+            const cat = String(category || '');
+            const dish = String(signatureDish || '招牌品項').split(' ')[0];
+            if (/冰|甜|豆花|蛋糕|烘焙/.test(cat)) {
+                return [
+                    '假日午後內用排隊等候時間較長',
+                    `熱門「${dish}」晚間時段偶有提早完售`,
+                    '外帶冰品/甜點保冷防護與內用座位動線待優化'
+                ];
+            }
+            if (/咖啡|早午餐|輕食/.test(cat)) {
+                return [
+                    '週末早午餐尖峰候位與出餐等候較久',
+                    '限時與插座座位規則標示可更清楚',
+                    '周邊汽機車停車格較有限'
+                ];
+            }
+            if (/火鍋|燒肉|烤/.test(cat)) {
+                return [
+                    '晚餐與假日尖峰未預約易久候',
+                    '餐後衣物油煙氣味與排煙效率改善空間',
+                    `招牌「${dish}」加點出餐節奏偶有延遲`
+                ];
+            }
+            return [
+                '用餐尖峰時段現場候位時間較長',
+                '周邊停車場動線與接駁指引可再加強',
+                `招牌「${dish}」於離峰或晚間偶有完售狀況`
+            ];
+        }
+
+        function buildDynamicCompetitors(store) {
+            const district = extractDistrictFromAddress(store.address);
+            const cleanCat = String(store.category || '人氣餐廳').split('/')[0];
+            const cleanName = String(store.name || '').split(' (')[0].trim();
+            const baseStars = parseFloat(store.stars) || 4.5;
+            const baseReviews = parseInt(String(store.reviewCount || '1000').replace(/,/g, ''), 10) || 1000;
+            const hash = stableStoreHash(`${store.id || ''}|${cleanName}`);
+
+            const comp1Stars = Math.max(3.8, Math.min(4.8, baseStars - (0.1 + (hash % 3) * 0.1))).toFixed(1);
+            const comp1Reviews = Math.max(220, Math.round(baseReviews * 0.72));
+            const sDiff1 = (baseStars - parseFloat(comp1Stars)).toFixed(1);
+            const rDiff1 = baseReviews - comp1Reviews;
+
+            const comp2Stars = Math.max(3.9, Math.min(4.8, baseStars + ((hash % 2 === 0) ? -0.1 : 0.1))).toFixed(1);
+            const comp2Reviews = Math.max(350, Math.round(baseReviews * 1.18));
+            const sDiff2 = (baseStars - parseFloat(comp2Stars)).toFixed(1);
+            const rDiff2 = baseReviews - comp2Reviews;
+
+            return [
+                {
+                    name: `${district}${cleanCat}人氣名店`,
+                    stars: comp1Stars,
+                    reviews: comp1Reviews.toLocaleString(),
+                    scoreDiff: (parseFloat(sDiff1) >= 0 ? '+' : '') + sDiff1,
+                    reviewDiff: (rDiff1 >= 0 ? '+' : '') + rDiff1.toLocaleString(),
+                    adv: `深耕${district}多年、回頭客基數穩定`,
+                    disadv: '裝潢較傳統、社群視覺記憶點與數位引流較弱'
+                },
+                {
+                    name: `${district}老字號質感${cleanCat}`,
+                    stars: comp2Stars,
+                    reviews: comp2Reviews.toLocaleString(),
+                    scoreDiff: (parseFloat(sDiff2) >= 0 ? '+' : '') + sDiff2,
+                    reviewDiff: (rDiff2 >= 0 ? '+' : '') + rDiff2.toLocaleString(),
+                    adv: '門市曝光高、團體聚餐與假日知名度佳',
+                    disadv: '尖峰出餐品控起伏較大、負評公關回覆偏制式'
+                }
+            ];
+        }
+
+        function buildDynamicRoi(store) {
+            const hash = stableStoreHash(`${store.id || ''}|${store.name || ''}`);
+            const baseTraffic = 720 + (hash % 420);
+            const liftPct = 28 + (hash % 15);
+            const before = [
+                baseTraffic,
+                baseTraffic + 12,
+                baseTraffic - 8,
+                baseTraffic + 15,
+                baseTraffic + 10
+            ];
+            const w4 = Math.round(baseTraffic * (1 + liftPct / 100));
+            const step = Math.round((w4 - baseTraffic) / 4);
+            const after = [
+                baseTraffic,
+                baseTraffic + step,
+                baseTraffic + step * 2,
+                baseTraffic + step * 3,
+                w4
+            ];
+            const weeklyDelta = w4 - before[4];
+            const monthlyRev = ((weeklyDelta * 4 * 260) / 10000).toFixed(1);
+            const cleanCat = String(store.category || '餐飲').split('/')[0];
+            return {
+                labels: ["基準期 (Baseline)", "第 1 週 (W1)", "第 2 週 (W2)", "第 3 週 (W3)", "第 4 週 (W4)"],
+                before,
+                after,
+                growthRate: `+${((weeklyDelta / before[4]) * 100).toFixed(1)}%`,
+                weeklyLift: `+${weeklyDelta.toLocaleString()} 人`,
+                estMonthlyRevenue: `+NT$ ${monthlyRev} 萬`,
+                insights: `針對【${store.name}】的${cleanCat}客群輪廓，透過招牌社群導流搭配痛點公關修復，預估 4 週帶動來客穩步躍升。`
+            };
+        }
+
+        // 統一正規化並動態補齊所有店家欄位 (確保新建立或 Firestore 舊資料於公關/同業/報告皆即時連動，永不留空)
+        function ensureStoreCompleteData(store) {
+            if (!store || typeof store !== 'object') return store;
+
+            store.id = store.id || ('store_' + Date.now());
+            store.name = store.name || '未命名店家';
+            store.category = store.category || '特色餐飲';
+            store.stars = (parseFloat(store.stars) || 4.5).toFixed(1);
+            store.reviewCount = String(store.reviewCount || '850');
+            store.address = store.address || '桃園市';
+            store.signatureDish = store.signatureDish || `${store.category.split('/')[0]}主廚招牌推薦`;
+            store.targetAudience = store.targetAudience || '老饕探店、聚餐約會、家庭客群';
+
+            // 情感比率同步
+            const gSent = store.geminiAnalysis?.sentiment;
+            store.sentiment = store.sentiment || gSent || { pos: 84, neu: 11, neg: 5 };
+
+            // 痛點列表雙向同步 (pkWeaknesses <-> painPoints <-> geminiAnalysis.painPoints)
+            const rawPains = (Array.isArray(store.pkWeaknesses) && store.pkWeaknesses.length > 0)
+                ? store.pkWeaknesses
+                : (Array.isArray(store.painPoints) && store.painPoints.length > 0
+                    ? store.painPoints.map(p => typeof p === 'string' ? p : (p?.title || '')).filter(Boolean)
+                    : (Array.isArray(store.geminiAnalysis?.painPoints) && store.geminiAnalysis.painPoints.length > 0
+                        ? store.geminiAnalysis.painPoints
+                        : buildDynamicPainPoints(store.category, store.signatureDish)));
+            store.pkWeaknesses = rawPains;
+            store.painPoints = [...rawPains];
+
+            if (!Array.isArray(store.pkStrengths) || store.pkStrengths.length === 0) {
+                store.pkStrengths = [
+                    `主打「${store.signatureDish}」口碑一致好評`,
+                    `${store.category.split('/')[0]}食材用心與現場服務親切`,
+                    `鎖定${store.targetAudience}打造高回訪氛圍`
+                ];
+            }
+
+            // AI 建議與文案/公關回覆與 Firestore 同步
+            const gAdvice = store.geminiAnalysis?.aiAdvice;
+            if (!Array.isArray(store.aiAdvice) || store.aiAdvice.length === 0) {
+                store.aiAdvice = (Array.isArray(gAdvice) && gAdvice.length > 0)
+                    ? gAdvice
+                    : [
+                        `針對「${store.pkWeaknesses[0]}」建立線上預約與即時告知機制，降低顧客預期落差。`,
+                        `於 IG 與 Google 評論區主打「${store.signatureDish}」實拍視覺，放大新客轉換率。`
+                    ];
+            }
+            if (!store.aiGeneratedCopy && store.geminiAnalysis?.marketingCopy) {
+                store.aiGeneratedCopy = store.geminiAnalysis.marketingCopy;
+            }
+            if (!store.aiPrReply && store.geminiAnalysis?.prReply) {
+                store.aiPrReply = store.geminiAnalysis.prReply;
+            }
+
+            // 關鍵字與評價維度
+            if (!Array.isArray(store.keywords) || store.keywords.length === 0) {
+                store.keywords = [
+                    { word: store.signatureDish.split(' ')[0] || '招牌必點', count: 180 },
+                    { word: '用餐環境氛圍 (Atmosphere)', count: 142 },
+                    { word: '店員服務親切 (Service)', count: 118 }
+                ];
+            }
+            if (!Array.isArray(store.themes) || store.themes.length === 0) {
+                const mainScore = Math.min(4.92, Math.max(4.1, parseFloat(store.stars) + 0.12)).toFixed(2);
+                const envScore = Math.min(4.88, Math.max(4.0, parseFloat(store.stars) + 0.05)).toFixed(2);
+                const svcScore = Math.max(3.85, parseFloat(store.stars) - 0.18).toFixed(2);
+                store.themes = [
+                    { name: `${store.category.split('/')[0]}口味創意 (Food)`, count: 290, pos: 260, neu: 20, neg: 10, score: mainScore },
+                    { name: "空間裝潢氛圍 (Atmosphere)", count: 195, pos: 175, neu: 12, neg: 8, score: envScore },
+                    { name: "候位與服務節奏 (Service)", count: 148, pos: 112, neu: 22, neg: 14, score: svcScore }
+                ];
+            }
+
+            // 最新評論與代表負評摘錄 (確保公關分頁「顧客代表原聲」永不為空)
+            if (!Array.isArray(store.recentReviews) || store.recentReviews.length === 0) {
+                store.recentReviews = [
+                    {
+                        stars: 5,
+                        text: `「${store.signatureDish}」表現真的很亮眼，口感層次豐富，整體非常推薦！`,
+                        date: "3 天前"
+                    },
+                    {
+                        stars: 3,
+                        text: `餐點「${store.signatureDish}」本身不錯，但${store.pkWeaknesses[0]}如果能再順暢一點會更完美。`,
+                        date: "1 週前"
+                    }
+                ];
+            }
+
+            // 商圈同業 PK 清單 (淘汰早期靜態佔位字眼，改以門市商圈與分類動態對標)
+            const hasPlaceholderComp = Array.isArray(store.competitors)
+                && store.competitors.length === 1
+                && (store.competitors[0].name === '同商圈競品店家' || store.competitors[0].name === '同商圈競品名店');
+            if (!Array.isArray(store.competitors) || store.competitors.length === 0 || hasPlaceholderComp) {
+                store.competitors = buildDynamicCompetitors(store);
+            }
+
+            // ROI 成長曲線補齊
+            if (!store.roiGrowth || !Array.isArray(store.roiGrowth.before)) {
+                store.roiGrowth = buildDynamicRoi(store);
+            }
+
+            // 確保擁有圖片
+            if (!store.image) {
+                getUniqueStoreImage(store);
+            }
+
+            return store;
+        }
 
         // 🏪 左下角店家切換清單展開/收合控制 (預設收合以保持地圖 100% 乾淨)
         let isStoreDrawerOpen = false;
@@ -2719,29 +3164,32 @@
             Object.values(markers).forEach(m => map.removeLayer(m));
             markers = {};
 
-            filteredStores.forEach(store => {
+            filteredStores.forEach(rawStore => {
+                const store = ensureStoreCompleteData(rawStore);
                 const isActive = store.id === activeStoreId;
                 const marker = L.marker([store.lat, store.lng], {
                     icon: createCustomMarkerIcon(store, isActive)
                 }).addTo(map);
 
-                const storeThumb = store.image || CATEGORY_THUMBNAILS[store.category] || CATEGORY_THUMBNAILS['default'];
+                const storeThumb = getUniqueStoreImage(store);
                 const posVal = store.sentiment?.pos ?? 85;
                 const neuVal = store.sentiment?.neu ?? 10;
                 const negVal = store.sentiment?.neg ?? 5;
-                const topPain = (Array.isArray(store.painPoints) && store.painPoints.length > 0)
-                    ? (typeof store.painPoints[0] === 'string' ? store.painPoints[0] : (store.painPoints[0]?.title || '尖峰等候時間稍長'))
-                    : '尖峰等候時間稍長，建議提前預約';
+                const topPain = (Array.isArray(store.pkWeaknesses) && store.pkWeaknesses.length > 0)
+                    ? store.pkWeaknesses[0]
+                    : ((Array.isArray(store.painPoints) && store.painPoints.length > 0)
+                        ? (typeof store.painPoints[0] === 'string' ? store.painPoints[0] : (store.painPoints[0]?.title || '尖峰等候時間稍長'))
+                        : '尖峰等候時間稍長，建議提前預約');
                 const aiAdviceText = (Array.isArray(store.aiAdvice) && store.aiAdvice.length > 0)
                     ? store.aiAdvice[0]
                     : '建議加強社群短影音行銷與尖峰叫號分流管理。';
 
                 marker.bindPopup(`
-                    <div class="text-xs space-y-2 p-1 min-w-[210px] max-w-[245px]">
-                        <!-- ① 店家/料理精緻縮圖 (帶分類與星級 Tag) -->
-                        <div class="relative w-full h-20 rounded-lg overflow-hidden bg-slate-100 shadow-inner">
-                            <img src="${storeThumb}" alt="${store.name}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=360&auto=format&fit=crop&q=80'">
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
+                    <div class="text-xs space-y-2 p-1 min-w-[210px] max-w-[250px]">
+                        <!-- ① 店家/料理獨立動態縮圖 (帶分類與星級 Tag) -->
+                        <div class="relative w-full h-24 rounded-lg overflow-hidden bg-slate-100 shadow-inner">
+                            <img src="${storeThumb}" alt="${store.name}" class="w-full h-full object-cover" onerror="handleStoreThumbError(this, '${store.id}')">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-transparent pointer-events-none"></div>
                             <span class="absolute top-1 left-1 text-[9px] font-bold text-white bg-blue-600/90 backdrop-blur-sm px-1.5 py-0.5 rounded shadow-sm">
                                 ${store.category}
                             </span>
@@ -2770,13 +3218,13 @@
                         <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-1">
                             <button id="toggle-popup-ai-btn-${store.id}" 
                                     onclick="togglePopupAiReport('${store.id}')" 
-                                    class="text-[10px] text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 font-bold px-2 py-1 rounded-md flex items-center space-x-1 transition-colors cursor-pointer border border-indigo-100">
+                                    class="text-[10px] text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 font-bold px-2 py-1.5 rounded-md flex items-center space-x-1 transition-colors cursor-pointer border border-indigo-100">
                                 <i class="fa-solid fa-wand-magic-sparkles text-[9px] text-indigo-500"></i>
                                 <span id="popup-btn-label-${store.id}">展開 AI 報告</span>
                                 <i id="popup-btn-icon-${store.id}" class="fa-solid fa-chevron-down text-[8px] ml-0.5 transition-transform"></i>
                             </button>
                             <button onclick="selectStore('${store.id}'); if(window.innerWidth < 768) switchMobileTab('report');" 
-                                    class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold px-1.5 py-1 rounded hover:bg-blue-50 transition-colors flex items-center space-x-0.5 cursor-pointer">
+                                    class="text-[10px] text-blue-600 hover:text-blue-800 font-semibold px-2 py-1.5 rounded hover:bg-blue-50 transition-colors flex items-center space-x-0.5 cursor-pointer">
                                 <span>載入分析報告</span>
                                 <i class="fa-solid fa-arrow-right text-[8px]"></i>
                             </button>
@@ -2814,7 +3262,7 @@
             });
         }
 
-        // 6. 渲染左側店家卡片 (精巧卡片尺寸與高度緊湊化，支援平滑觸控滑動)
+        // 6. 渲染左側店家卡片 (帶獨立迷你縮圖，支援平滑觸控滑動)
         function renderStoreCards() {
             const container = document.getElementById('store-list');
             const pillBadge = document.getElementById('pill-store-count');
@@ -2833,15 +3281,24 @@
                 return;
             }
 
-            container.innerHTML = filteredStores.map(store => `
+            container.innerHTML = filteredStores.map(rawStore => {
+                const store = ensureStoreCompleteData(rawStore);
+                const thumb = getUniqueStoreImage(store);
+                return `
                 <div id="card-${store.id}" onclick="selectStore('${store.id}', true)" 
-                     class="store-card shrink-0 w-44 sm:w-48 p-2 rounded-xl border border-slate-200/90 bg-white cursor-pointer hover:border-blue-400 hover:shadow-md transition-all snap-start ${store.id === activeStoreId ? 'active' : ''}">
-                    <div class="flex items-center justify-between leading-none">
-                        <span class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">${store.category}</span>
-                        <span class="text-amber-500 font-bold text-[11px]">★ ${store.stars}</span>
+                     class="store-card shrink-0 w-48 sm:w-52 p-2 rounded-xl border border-slate-200/90 bg-white cursor-pointer hover:border-blue-400 hover:shadow-md transition-all snap-start ${store.id === activeStoreId ? 'active' : ''}">
+                    <div class="flex items-start gap-2">
+                        <img src="${thumb}" alt="${store.name}" onerror="handleStoreThumbError(this, '${store.id}')"
+                             class="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-100 bg-slate-100">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center justify-between leading-none gap-1">
+                                <span class="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium truncate">${store.category}</span>
+                                <span class="text-amber-500 font-bold text-[10px] shrink-0">★ ${store.stars}</span>
+                            </div>
+                            <h4 class="font-bold text-xs text-slate-800 truncate mt-1">${store.name.split(' ')[0]}</h4>
+                        </div>
                     </div>
-                    <h4 class="font-bold text-xs text-slate-800 truncate mt-1">${store.name.split(' ')[0]}</h4>
-                    <p class="text-[10px] text-slate-400 truncate mt-0.5">${store.address}</p>
+                    <p class="text-[10px] text-slate-400 truncate mt-1">${store.address}</p>
                     <div class="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-100 text-[9px] text-slate-500">
                         <span>${store.reviewCount} 則</span>
                         <span class="text-blue-600 font-semibold flex items-center">
@@ -2850,17 +3307,44 @@
                         </span>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // 7. 切換店家與同步 UI (含水波紋雷達與平滑過渡動效)
+        function updateCategoryPillStyles(category) {
+            document.querySelectorAll('.cat-pill').forEach(btn => {
+                if (btn.getAttribute('data-cat') === category) {
+                    btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-sm transition inline-flex items-center justify-center shrink-0";
+                } else {
+                    btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center shrink-0";
+                }
+            });
+        }
+
+        function resetFiltersQuietly() {
+            currentSearchQuery = '';
+            currentSort = 'default';
+            currentCategory = 'all';
+
+            const searchInput = document.getElementById('store-search-input');
+            if (searchInput) searchInput.value = '';
+            const clearBtn = document.getElementById('search-clear-btn');
+            if (clearBtn) clearBtn.classList.add('hidden');
+            const sortSelect = document.getElementById('sort-select');
+            if (sortSelect) sortSelect.value = 'default';
+            updateCategoryPillStyles('all');
+        }
+
         function selectStore(storeId, autoPan = true) {
             const previousStoreId = activeStoreId;
             activeStoreId = storeId;
             selectedPainIndex = 0; // 重設痛點選擇為第 1 項
             currentCompetitorIndex = 0; // 重設同業競爭對手為第 1 項
-            const selectedStore = storesData.find(s => s.id === storeId);
-            if (!selectedStore) return;
+            const rawStore = storesData.find(s => s.id === storeId);
+            if (!rawStore) return;
+
+            const selectedStore = ensureStoreCompleteData(rawStore);
 
             if (markers[previousStoreId]) {
                 const prevPin = document.getElementById(`pin-${previousStoreId}`);
@@ -2896,16 +3380,14 @@
         // 8. 搜尋輸入事件處理解耦與全域化
         function onSearchInput(value) {
             currentSearchQuery = value || '';
+            const clearBtn = document.getElementById('search-clear-btn');
+            if (clearBtn) {
+                clearBtn.classList.toggle('hidden', currentSearchQuery.trim().length === 0);
+            }
             // 使用者主動鍵入搜尋字詞時，若目前選取特定分類，自動重設為 'all'（全部），確保全域搜尋無死角
             if (currentSearchQuery.trim().length > 0 && currentCategory !== 'all') {
                 currentCategory = 'all';
-                document.querySelectorAll('.cat-pill').forEach(btn => {
-                    if (btn.getAttribute('data-cat') === 'all') {
-                        btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-sm transition inline-flex items-center justify-center";
-                    } else {
-                        btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center";
-                    }
-                });
+                updateCategoryPillStyles('all');
             }
             applyFilters(true);
         }
@@ -2913,6 +3395,7 @@
         // 9. 搜尋與過濾核心處理器
         function applyFilters(autoPan = true) {
             const query = (currentSearchQuery || '').trim().toLowerCase();
+            resolveUniqueStoreImages(storesData);
 
             filteredStores = storesData.filter(store => {
                 if (!store) return false;
@@ -2935,7 +3418,7 @@
             if (currentSort === 'stars') {
                 filteredStores.sort((a, b) => parseFloat(b.stars) - parseFloat(a.stars));
             } else if (currentSort === 'reviews') {
-                filteredStores.sort((a, b) => parseInt(b.reviewCount.replace(/,/g, '')) - parseInt(a.reviewCount.replace(/,/g, '')));
+                filteredStores.sort((a, b) => parseInt(String(b.reviewCount || '0').replace(/,/g, ''), 10) - parseInt(String(a.reviewCount || '0').replace(/,/g, ''), 10));
             }
 
             updateSearchStatusUI();
@@ -2962,19 +3445,22 @@
                         }
                     }
                 }
+            } else if (storesData.length === 0) {
+                renderEmptyDashboard();
             } else {
+                // 若僅篩選結果暫時為 0，避免破壞目前選取店家的分析報告，僅在標題區溫和提示
                 renderEmptyDashboard();
             }
         }
 
-        // 10. 查無符合條件店家時的優雅提示
+        // 10. 查無符合條件店家時的優雅提示（同步防護公關與同業分頁不殘留錯誤文字）
         function renderEmptyDashboard() {
             const titleEl = document.getElementById('report-title');
-            if (titleEl) titleEl.innerText = "查無符合條件的店家";
+            if (titleEl) titleEl.innerText = "目前篩選無相符店家";
             const catEl = document.getElementById('report-category');
-            if (catEl) catEl.innerText = "搜尋結果為空";
+            if (catEl) catEl.innerText = "篩選結果 0 筆";
             const addrEl = document.getElementById('report-address');
-            if (addrEl) addrEl.innerHTML = '<i class="fa-solid fa-circle-info text-amber-500 mr-1.5"></i> 請嘗試更換搜尋關鍵字（如：相演、中壢、米干）或 <button onclick="resetAllFilters()" class="text-blue-600 underline font-semibold">重設篩選</button>';
+            if (addrEl) addrEl.innerHTML = '<i class="fa-solid fa-circle-info text-amber-500 mr-1.5"></i> 請更換關鍵字或 <button onclick="resetAllFilters()" class="text-blue-600 underline font-semibold">重設篩選顯示全部店家</button>';
             const starEl = document.getElementById('report-stars');
             if (starEl) starEl.innerText = "—";
             const revEl = document.getElementById('report-reviews');
@@ -2982,11 +3468,11 @@
 
             const kwContainer = document.getElementById('keywords-container');
             if (kwContainer) {
-                kwContainer.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">查無相關關鍵字資料</div>';
+                kwContainer.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">請重設篩選或新增餐廳以檢視分析</div>';
             }
-            const copyArea = document.getElementById('copywriting-text');
-            if (copyArea) {
-                copyArea.innerText = "查無店家資料，請重新搜尋或重設條件。";
+            const copyOutput = document.getElementById('marketing-copy-output');
+            if (copyOutput) {
+                copyOutput.value = "請點擊地圖上的店家 Pin 點或重設篩選條件，即可即時載入 AI 行銷文案與營運洞察。";
             }
         }
 
@@ -3027,15 +3513,7 @@
 
         function setCategoryFilter(category) {
             currentCategory = category;
-
-            document.querySelectorAll('.cat-pill').forEach(btn => {
-                if (btn.getAttribute('data-cat') === category) {
-                    btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold shadow-sm transition inline-flex items-center justify-center";
-                } else {
-                    btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center";
-                }
-            });
-
+            updateCategoryPillStyles(category);
             applyFilters(true);
         }
 
@@ -3080,8 +3558,10 @@
         function ensureCategoryPill(category) {
             const pillsContainer = document.getElementById('category-pills');
             if (!pillsContainer || !category || category === 'all') return;
-            const existing = pillsContainer.querySelector(`[data-cat="${category}"]`);
-            if (!existing) {
+            const exists = Array.from(pillsContainer.querySelectorAll('.cat-pill')).some(
+                el => el.getAttribute('data-cat') === category
+            );
+            if (!exists) {
                 const btn = document.createElement('button');
                 btn.setAttribute('data-cat', category);
                 btn.className = "cat-pill min-h-[44px] px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-medium transition inline-flex items-center justify-center shrink-0";
@@ -3101,22 +3581,17 @@
             const searchInput = document.getElementById('store-search-input');
             if (searchInput) searchInput.value = '';
             currentSearchQuery = '';
+            const clearBtn = document.getElementById('search-clear-btn');
+            if (clearBtn) clearBtn.classList.add('hidden');
             applyFilters(true);
         }
 
         function resetAllFilters() {
-            const searchInput = document.getElementById('store-search-input');
-            if (searchInput) searchInput.value = '';
-            currentSearchQuery = '';
-
-            const sortSelect = document.getElementById('sort-select');
-            if (sortSelect) sortSelect.value = 'default';
-            currentSort = 'default';
-
-            setCategoryFilter('all');
+            resetFiltersQuietly();
+            applyFilters(true);
         }
 
-        // 13. 切換頂部功能 Tab (仿 Google Maps 極簡文字導覽與藍色底線切換)
+        // 13. 切換頂部功能 Tab (自動抓取目前選中店家與 Firestore aiAdvice/分類即時連動)
         function switchDashboardTab(tab) {
             currentDashboardTab = tab;
 
@@ -3144,58 +3619,106 @@
                 }
             });
 
-            if (tab === 'overview') {
-                setTimeout(() => {
-                    if (sentimentChart) {
-                        sentimentChart.resize();
-                        sentimentChart.update();
+            // 抓取目前選中或最新點擊的店家並確保所有資料即時連動 (消除停滯/查無符殘留)
+            const rawStore = storesData.find(s => s.id === activeStoreId) || filteredStores[0] || storesData[0];
+            if (rawStore) {
+                activeStoreId = rawStore.id;
+                const currentStore = ensureStoreCompleteData(rawStore);
+                renderDashboardHeader(currentStore);
+
+                if (tab === 'overview') {
+                    renderMarketingCard(currentStore);
+                    updateChart(currentStore.sentiment || { pos: 70, neu: 20, neg: 10 });
+                    setTimeout(() => {
+                        if (sentimentChart) {
+                            sentimentChart.resize();
+                            sentimentChart.update();
+                        }
+                    }, 70);
+                } else if (tab === 'retention') {
+                    renderThemeTable(currentStore);
+                    renderPainPointsUi(currentStore);
+                    updatePrReplyText(currentStore);
+                } else if (tab === 'benchmark') {
+                    if (currentCompetitorIndex >= (currentStore.competitors?.length || 0)) {
+                        currentCompetitorIndex = 0;
                     }
-                }, 60);
-            } else if (tab === 'benchmark') {
-                setTimeout(() => {
-                    if (roiGrowthChart) {
-                        roiGrowthChart.resize();
-                        roiGrowthChart.update();
-                    }
-                }, 60);
+                    renderCompetitorSelector(currentStore);
+                    renderCompetitorPk(currentStore, currentCompetitorIndex);
+                    renderRoiSection(currentStore);
+                    setTimeout(() => {
+                        if (roiGrowthChart) {
+                            roiGrowthChart.resize();
+                            roiGrowthChart.update();
+                        }
+                    }, 70);
+                }
             }
         }
 
-        // 14. 行動端底部按鈕切換（保持拉長與雙列排版）
+        // 14. 行動端底部按鈕切換 (視圖切換防護 + 自動同步報表/圖表尺寸與地圖尺寸)
+        let activeMobileTab = 'map';
         function switchMobileTab(tab) {
+            activeMobileTab = tab;
             const main = document.getElementById('main-container');
             const mapBtn = document.getElementById('tab-map-btn');
             const reportBtn = document.getElementById('tab-report-btn');
 
-            const activeBtnClass = "flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center bg-blue-600 text-white transition-all shadow-md";
-            const inactiveBtnClass = "flex-1 min-h-[50px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all";
+            const activeBtnClass = "flex-1 min-h-[48px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center bg-blue-600 text-white transition-all shadow-md cursor-pointer";
+            const inactiveBtnClass = "flex-1 min-h-[48px] py-1.5 px-3 rounded-xl flex flex-col items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all cursor-pointer";
 
             if (tab === 'map') {
                 main.classList.add('mobile-view-map');
                 main.classList.remove('mobile-view-report');
-                if (mapBtn) mapBtn.className = activeBtnClass;
-                if (reportBtn) reportBtn.className = inactiveBtnClass;
-                setTimeout(() => {
-                    if (map) {
-                        map.invalidateSize();
-                    }
-                }, 100);
+                if (mapBtn) {
+                    mapBtn.className = activeBtnClass;
+                    mapBtn.setAttribute('aria-pressed', 'true');
+                }
+                if (reportBtn) {
+                    reportBtn.className = inactiveBtnClass;
+                    reportBtn.setAttribute('aria-pressed', 'false');
+                }
+                [80, 220].forEach(delay => {
+                    setTimeout(() => {
+                        if (map) map.invalidateSize();
+                    }, delay);
+                });
             } else {
                 main.classList.remove('mobile-view-map');
                 main.classList.add('mobile-view-report');
-                if (reportBtn) reportBtn.className = activeBtnClass;
-                if (mapBtn) mapBtn.className = inactiveBtnClass;
-                // 進入報告 Tab 時平滑補間更新 Chart.js
-                setTimeout(() => {
-                    if (sentimentChart) {
-                        sentimentChart.resize();
-                        sentimentChart.update();
-                    }
-                    if (roiGrowthChart) {
-                        roiGrowthChart.resize();
-                        roiGrowthChart.update();
-                    }
-                }, 100);
+                if (reportBtn) {
+                    reportBtn.className = activeBtnClass;
+                    reportBtn.setAttribute('aria-pressed', 'true');
+                }
+                if (mapBtn) {
+                    mapBtn.className = inactiveBtnClass;
+                    mapBtn.setAttribute('aria-pressed', 'false');
+                }
+
+                // 切入 AI 分析報告視圖前，強制同步最新選取店家的完整資料與目前分頁
+                const rawStore = storesData.find(s => s.id === activeStoreId) || filteredStores[0] || storesData[0];
+                if (rawStore) {
+                    activeStoreId = rawStore.id;
+                    updateDashboard(ensureStoreCompleteData(rawStore));
+                }
+
+                const dashSection = document.getElementById('dashboard-section');
+                if (dashSection) {
+                    dashSection.scrollTop = 0;
+                }
+
+                [80, 220].forEach(delay => {
+                    setTimeout(() => {
+                        if (sentimentChart) {
+                            sentimentChart.resize();
+                            sentimentChart.update();
+                        }
+                        if (roiGrowthChart) {
+                            roiGrowthChart.resize();
+                            roiGrowthChart.update();
+                        }
+                    }, delay);
+                });
             }
         }
 
@@ -3770,7 +4293,7 @@
                 "2. 【真實詳細門牌地址 (address)】：必須精確還原該店家在台灣真實存在的完整門市門牌地址（嚴格包含：縣市 + 行政區 + 路/街/巷/弄 + 門牌號碼，例如：「桃園市平鎮區忠貞路76號」、「桃園市桃園區大興西路二段30號」、「桃園市中壢區慈惠一街119號」）。絕對不可輸出模糊或僅有行政區的籠統字眼！\n" +
                 "3. 【精準 GPS 坐標 (lat, lng)】：請依據你對該真實地址的地理資訊庫，輸出該門市真實經緯度（台灣本島範圍：緯度 lat 約在 22.0 ~ 25.3，經度 lng 約在 120.0 ~ 122.0，精確至小數點後 4~6 位）。\n" +
                 "4. 【料理分類 (category)】：必須依據店名、招牌菜色與商家特色進行「精確智慧判斷」，客觀歸類最適當的料理類別（例如：冰品豆花類應歸為「甜點/冰品」、咖啡輕食、美式漢堡、日式料理/壽司、拉麵、燒肉/鍋物、中式/江浙、在地小吃/米干、泰式料理、義式料理等）。嚴禁無腦固定為某個類別！\n" +
-                "5. 【評論深度診斷與社群爆款產出】：同步生成情感比率 (sentiment)、3大核心客怨痛點 (painPoints)、250字 IG 爆款行銷文案 (marketingCopy)、專業公關回覆 (prReply) 與營運改善建議 (aiAdvice)。\n\n" +
+                "5. 【評論深度診斷與社群爆款產出】：同步生成情感比率 (sentiment)、3大核心客怨痛點 (painPoints)、250字 IG 爆款行銷文案 (marketingCopy)、專業公關回覆 (prReply)、營運改善建議 (aiAdvice) 與 2 家同行政區同類型同業競品對標 (competitors)。\n\n" +
                 "請嚴格輸出合法的純 JSON 物件（所有文字皆使用繁體中文，且絕對不要包含任何 markdown 語法或 ```json 外框）：\n" +
                 "{\n" +
                 '  "name": "餐廳正式標準名稱",\n' +
@@ -3794,6 +4317,17 @@
                 '  "aiAdvice": [\n' +
                 '    "建議導入線上候位叫號與分流預約機制，舒緩尖峰等候焦慮。",\n' +
                 '    "針對招牌菜色推廣預定保留機制，並優化備料預測以提高滿意度。"\n' +
+                '  ],\n' +
+                '  "competitors": [\n' +
+                '    {\n' +
+                '      "name": "同商圈同類型指標名店",\n' +
+                '      "stars": "4.4",\n' +
+                '      "reviews": "960",\n' +
+                '      "scoreDiff": "+0.2",\n' +
+                '      "reviewDiff": "+320",\n' +
+                '      "adv": "老字號知名度高、基本盤客群穩固",\n' +
+                '      "disadv": "裝潢較傳統、缺乏社群視覺記憶點"\n' +
+                '    }\n' +
                 '  ]\n' +
                 "}";
 
@@ -4011,8 +4545,12 @@
                 const coords = await resolveStoreCoordinates(storeAddress, referenceCoords, urlCoords);
                 console.log("📍 [Final Save] 最終精準座標:", coords);
 
-                // 2. 結構化完整 Store 模型 (保留 Gemini 深度分析快取)
-                const newStore = {
+                // 2. 結構化完整 Store 模型 (動態補齊獨立縮圖、公關痛點、商圈對標與 Gemini 深度分析快取)
+                const rawPains = (Array.isArray(pendingQuickStore.painPoints) && pendingQuickStore.painPoints.length > 0)
+                    ? pendingQuickStore.painPoints
+                    : buildDynamicPainPoints(storeCategory, storeSignature);
+                const newStore = ensureStoreCompleteData({
+                    id: 'quick_tmp_' + Date.now(),
                     name: storeName,
                     category: storeCategory,
                     stars: (parseFloat(pendingQuickStore.stars) || 4.5).toFixed(1),
@@ -4025,59 +4563,38 @@
                     sentiment: pendingQuickStore.sentiment || { pos: 84, neu: 11, neg: 5 },
                     radarScores: [4.8, 4.6, 4.7, 4.4, 4.3],
                     pkStrengths: [
-                        "主打" + storeSignature + "道地現做",
-                        "空間舒適且服務貼心親切",
-                        "交通便利、知名度極高"
+                        "主打「" + storeSignature + "」口碑一致好評",
+                        storeCategory.split('/')[0] + "食材用心與親切服務體驗",
+                        "具備社群高記憶點與穩定回訪魅力"
                     ],
-                    pkWeaknesses: pendingQuickStore.painPoints || [
-                        "尖峰時段候位時間較長",
-                        "周邊停車場較難尋",
-                        "招牌料理偶有提早售罄"
-                    ],
-                    competitors: [
-                        {
-                            name: "同商圈競品店家",
-                            stars: "4.3",
-                            reviews: "1,800",
-                            scoreDiff: "+0.3",
-                            reviewDiff: "+400",
-                            adv: "老字號知名度高客群廣",
-                            disadv: "傳統裝潢無創新精緻亮點"
-                        }
-                    ],
-                    roiGrowth: {
-                        labels: ["基準期 (Baseline)", "第 1 週 (W1)", "第 2 週 (W2)", "第 3 週 (W3)", "第 4 週 (W4)"],
-                        before: [850, 860, 840, 870, 860],
-                        after: [850, 940, 1020, 1100, 1180],
-                        growthRate: "+37.2%",
-                        weeklyLift: "+320 人",
-                        estMonthlyRevenue: "+NT$ 26.8 萬",
-                        insights: "透過 AI 爆款文案精準導流，並針對候位與招牌備料改善，業績顯著提升。"
-                    },
+                    pkWeaknesses: rawPains,
+                    painPoints: [...rawPains],
+                    competitors: Array.isArray(pendingQuickStore.competitors) && pendingQuickStore.competitors.length > 0
+                        ? pendingQuickStore.competitors
+                        : null,
                     keywords: [
                         { word: storeSignature.split(' ')[0] || "招牌名點", count: 190 },
                         { word: "用餐氛圍極佳 (Atmosphere)", count: 150 },
                         { word: "服務用心 (Service)", count: 120 }
-                    ],
-                    themes: [
-                        { name: "餐點創意與美味 (Food)", count: 310, pos: 280, neu: 20, neg: 10, score: "4.76" },
-                        { name: "空間裝潢氛圍 (Atmosphere)", count: 205, pos: 190, neu: 10, neg: 5, score: "4.72" },
-                        { name: "服務與價格 (Value)", count: 145, pos: 115, neu: 20, neg: 10, score: "4.32" }
                     ],
                     recentReviews: [
                         {
                             stars: 5,
                             text: storeSignature + " 真的很驚艷！環境乾淨舒服，服務也很細心，下次一定會再來！",
                             date: "剛剛"
+                        },
+                        {
+                            stars: 3,
+                            text: "整體餐點水準很好，但「" + (rawPains[0] || "尖峰等候") + "」若能再優化會更完美。",
+                            date: "3 天前"
                         }
                     ],
-                    aiAdvice: pendingQuickStore.aiAdvice || [
-                        "建議導入線上候位預約機制，舒緩尖峰排隊人潮。",
-                        "加強社群短影音行銷，主打招牌料理視覺張力。"
-                    ],
+                    aiAdvice: Array.isArray(pendingQuickStore.aiAdvice) && pendingQuickStore.aiAdvice.length > 0
+                        ? pendingQuickStore.aiAdvice
+                        : null,
                     geminiAnalysis: {
                         sentiment: pendingQuickStore.sentiment || { pos: 84, neu: 11, neg: 5 },
-                        painPoints: pendingQuickStore.painPoints || [],
+                        painPoints: rawPains,
                         marketingCopy: pendingQuickStore.marketingCopy || '',
                         prReply: pendingQuickStore.prReply || '',
                         aiAdvice: pendingQuickStore.aiAdvice || []
@@ -4091,20 +4608,26 @@
                         email: auth.currentUser.email,
                         displayName: auth.currentUser.displayName || '商家老闆'
                     } : { uid: 'guest', displayName: '一鍵網址匯入' }
-                };
+                });
+                // 為新店家分配不與現有店家重複的獨立視覺縮圖並保留於雲端文件
+                const usedThumbs = new Set((storesData || []).map(s => s?.image).filter(Boolean));
+                newStore.image = assignUniqueImageForStore(newStore, usedThumbs);
 
                 // 3. 寫入 Firebase Cloud Firestore
                 if (window.db) {
                     console.log("☁️ 正在將新店家寫入 Cloud Firestore [stores] 集合...");
-                    const docRef = await window.db.collection('stores').add(newStore);
+                    const { id: _tmpId, ...storePayload } = newStore;
+                    const docRef = await window.db.collection('stores').add(storePayload);
                     newStore.id = docRef.id;
                     console.log("✅ 成功寫入 Cloud Firestore，Document ID: " + docRef.id);
                 } else {
                     newStore.id = 'quick_' + Date.now();
                 }
 
-                // 4. 更新本地資料庫並即時同步 UI
+                // 4. 更新本地資料庫、註冊動態分類膠囊與重設篩選條件（確保新建店家永不被過濾掉）
                 storesData.unshift(newStore);
+                ensureCategoryPill(storeCategory);
+                resetFiltersQuietly();
                 const quickInput = document.getElementById('quick-url-input');
                 const modalQuickInput = document.getElementById('modal-quick-url-input');
                 if (quickInput) quickInput.value = '';
@@ -4113,7 +4636,7 @@
                 closeQuickConfirmModal();
                 closeAddStoreModal();
 
-                // 5. 重新渲染地圖標記與列表，並自動平移對準該店家
+                // 5. 重新渲染地圖標記與列表，並自動平移對準該店家且同步所有分頁
                 applyFilters(true);
                 selectStore(newStore.id, true);
 
@@ -4754,8 +5277,9 @@
             const signatureDish = document.getElementById('new-store-signature').value.trim() || '主廚私房招牌推薦料理';
             const targetAudience = document.getElementById('new-store-audience').value.trim() || '老饕約會、家庭聚餐';
 
-            // 結構化完整店家模型
-            const newStore = {
+            // 結構化完整店家模型 (動態補齊獨立縮圖、客製痛點、商圈對標與營運成長模型)
+            const newStore = ensureStoreCompleteData({
+                id: 'local_tmp_' + Date.now(),
                 name,
                 category,
                 stars,
@@ -4767,55 +5291,15 @@
                 targetAudience,
                 sentiment: { pos: 84, neu: 11, neg: 5 },
                 radarScores: [4.8, 4.6, 4.7, 4.4, 4.3],
-                pkStrengths: ["主打特色料理現點現做美味道地", "服務親切且空間寬敞舒適", "周邊交通便利容易抵達"],
-                pkWeaknesses: ["假日晚餐時段建議提前訂位", "尖峰等候時間稍長"],
-                competitors: [
-                    {
-                        name: "同商圈競品名店",
-                        stars: "4.3",
-                        reviews: "2,200",
-                        scoreDiff: "+0.3",
-                        reviewDiff: "+800",
-                        adv: "老字號知名度高客群廣",
-                        disadv: "傳統裝潢無私房質感氛圍"
-                    }
-                ],
-                roiGrowth: {
-                    labels: ["基準期 (Baseline)", "第 1 週 (W1)", "第 2 週 (W2)", "第 3 週 (W3)", "第 4 週 (W4)"],
-                    before: [880, 890, 875, 895, 890],
-                    after: [880, 970, 1060, 1140, 1220],
-                    growthRate: "+38.5%",
-                    weeklyLift: "+330 人",
-                    estMonthlyRevenue: "+NT$ 27.6 萬",
-                    insights: "透過 Phase 1 招牌吸睛文案導流，並落實客訴痛點改善，每週來客數顯著躍升。"
-                },
-                keywords: [
-                    { word: signatureDish.split(' ')[0] || "招牌名點", count: 185 },
-                    { word: "用餐氛圍極佳 (Atmosphere)", count: 145 },
-                    { word: "高性價比 (Value)", count: 115 }
-                ],
-                themes: [
-                    { name: "餐點創意與美味 (Food)", count: 320, pos: 290, neu: 20, neg: 10, score: "4.78" },
-                    { name: "空間裝潢氛圍 (Atmosphere)", count: 210, pos: 195, neu: 10, neg: 5, score: "4.75" },
-                    { name: "服務與價格 (Value)", count: 150, pos: 120, neu: 20, neg: 10, score: "4.30" }
-                ],
-                recentReviews: [
-                    {
-                        stars: 5,
-                        text: signatureDish + " 真的很驚豔！環境非常舒服有質感，服務也細心，值得推薦！",
-                        date: "剛剛"
-                    }
-                ],
-                aiAdvice: [
-                    "持續在 IG / 社群發布招牌私房料理短影音，鎖定年輕與老饕聚會客群。",
-                    "針對尖峰候位建立線上候位通知，提升顧客到訪便利性。"
-                ],
                 createdAt: new Date().toISOString()
-            };
+            });
+            const usedThumbs = new Set((storesData || []).map(s => s?.image).filter(Boolean));
+            newStore.image = assignUniqueImageForStore(newStore, usedThumbs);
 
             try {
                 if (window.db) {
-                    const docRef = await window.db.collection('stores').add(newStore);
+                    const { id: _tmpId, ...storePayload } = newStore;
+                    const docRef = await window.db.collection('stores').add(storePayload);
                     newStore.id = docRef.id;
                     console.log("✅ 成功寫入 Firestore，Document ID: " + docRef.id);
                 } else {
@@ -4823,6 +5307,8 @@
                 }
 
                 storesData.unshift(newStore);
+                ensureCategoryPill(category);
+                resetFiltersQuietly();
                 closeAddStoreModal();
                 applyFilters(true);
                 selectStore(newStore.id, true);
@@ -5070,66 +5556,86 @@
             }
         }
 
-        // 渲染痛點列表與對應負評內容
-        function renderPainPointsUi(store) {
+        // 渲染痛點列表與對應負評內容 (即時連動當前選取店家、分類與 Firestore aiAdvice)
+        function renderPainPointsUi(rawStore) {
+            const store = ensureStoreCompleteData(rawStore);
+            if (!store) return;
+
             const painList = document.getElementById('pain-points-list');
             const targetBox = document.getElementById('target-complaint-box');
             const riskText = document.getElementById('negative-risk-text');
             const riskBadge = document.getElementById('negative-risk-badge');
 
+            const weaknesses = Array.isArray(store.pkWeaknesses) && store.pkWeaknesses.length > 0
+                ? store.pkWeaknesses
+                : buildDynamicPainPoints(store.category, store.signatureDish);
+            if (selectedPainIndex >= weaknesses.length || selectedPainIndex < 0) {
+                selectedPainIndex = 0;
+            }
+
             // 更新整體客怨風險提示
-            const negRate = store.sentiment?.neg || 0;
-            if (riskText) {
+            const negRate = store.sentiment?.neg ?? 0;
+            if (riskText && riskBadge) {
                 if (negRate >= 10) {
-                    riskText.innerText = `顧客流失風險：高 (負評比 ${negRate}%)`;
+                    riskText.innerText = `顧客流失風險：高 (${store.category} · 負評比 ${negRate}%)`;
                     riskBadge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 shrink-0";
                 } else {
-                    riskText.innerText = `客怨控制良好 (負評比 ${negRate}%)`;
+                    riskText.innerText = `客怨控制良好 (${store.category} · 負評比 ${negRate}%)`;
                     riskBadge.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-800 shrink-0";
                 }
             }
 
             // 渲染痛點選擇卡片 (具備 44px 觸控目標高度)
-            if (painList && store.pkWeaknesses) {
-                painList.innerHTML = store.pkWeaknesses.map((w, idx) => `
-                    <div onclick="selectPainPoint(${idx})" class="pain-card min-h-[44px] p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${idx === selectedPainIndex ? 'border-blue-600 bg-blue-50/50 shadow-sm text-blue-900' : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'}">
-                        <span class="text-xs font-bold text-slate-800 flex items-center truncate mr-2">
+            if (painList) {
+                painList.innerHTML = weaknesses.map((w, idx) => `
+                    <div onclick="selectPainPoint(${idx})" class="pain-card min-h-[44px] p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between gap-2 ${idx === selectedPainIndex ? 'border-blue-600 bg-blue-50/50 shadow-sm text-blue-900' : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'}">
+                        <span class="text-xs font-bold text-slate-800 flex items-center min-w-0 flex-1">
                             <span class="w-2 h-2 rounded-full ${idx === selectedPainIndex ? 'bg-blue-600' : 'bg-slate-300'} mr-2 shrink-0"></span>
                             <span class="truncate">${w}</span>
                         </span>
                         <span class="text-[10px] shrink-0 font-medium ${idx === selectedPainIndex ? 'text-blue-700 font-bold' : 'text-slate-400'}">
-                            ${idx === 0 ? '高頻客怨 #1' : '痛點爭議 #2'}
+                            ${idx === 0 ? '高頻客怨 #1' : `痛點議題 #${idx + 1}`}
                         </span>
                     </div>
                 `).join('');
             }
 
-            // 渲染對應的真實負評/爭議摘錄
+            // 渲染對應的真實負評/爭議摘錄 ＋ Firestore AI 改善建議對齊
             if (targetBox) {
                 const reviews = store.recentReviews || [];
-                const representativeNeg = reviews.find(r => r.stars <= 3) || reviews[1] || reviews[0] || { stars: 3, date: '', text: '暫無此項目之評論記錄' };
+                const representativeNeg = reviews.find(r => r.stars <= 3) || reviews[1] || reviews[0] || {
+                    stars: 3,
+                    date: '近期評論',
+                    text: `${store.signatureDish}品質不錯，但「${weaknesses[selectedPainIndex] || weaknesses[0]}」建議能持續改善。`
+                };
+                const topAdvice = (Array.isArray(store.aiAdvice) && store.aiAdvice[0])
+                    ? store.aiAdvice[0]
+                    : '建議於 24 小時內誠懇致歉並說明改善時程。';
                 targetBox.innerHTML = `
                     <div class="flex items-center justify-between text-amber-500">
-                        <span class="text-xs">${'★'.repeat(representativeNeg.stars)}</span>
-                        <span class="text-[10px] text-slate-400 font-mono">${representativeNeg.date}</span>
+                        <span class="text-xs">${'★'.repeat(representativeNeg.stars || 3)}</span>
+                        <span class="text-[10px] text-slate-400 font-mono">${representativeNeg.date || '近期'}</span>
                     </div>
                     <p class="text-slate-700 leading-relaxed font-medium">「${representativeNeg.text}」</p>
-                    <div class="pt-1.5 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
-                        <span>關聯痛點：<strong class="text-rose-600">${store.pkWeaknesses?.[selectedPainIndex] || store.pkWeaknesses?.[0]}</strong></span>
+                    <div class="pt-1.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-500">
+                        <span>關聯痛點：<strong class="text-rose-600">${weaknesses[selectedPainIndex] || weaknesses[0]}</strong></span>
                         <span class="text-rose-600 font-semibold">建議於 24 小時內回覆</span>
+                    </div>
+                    <div class="pt-1.5 border-t border-slate-100 text-[10px] text-blue-700 bg-blue-50/70 px-2 py-1.5 rounded-lg leading-snug">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1 text-indigo-500"></i><strong>AI 營運對策：</strong>${topAdvice}
                     </div>
                 `;
             }
         }
 
-        // 更新公關回覆文字區域
-        function updatePrReplyText(store) {
+        // 更新公關回覆文字區域 (切換不同痛點或策略時即時生成客製回覆)
+        function updatePrReplyText(rawStore) {
+            const store = ensureStoreCompleteData(rawStore);
             const prOutput = document.getElementById('pr-reply-output');
-            if (prOutput) {
-                // 優先採用 Gemini 生成之深度客製公關回覆
-                if (store.geminiAnalysis?.prReply && currentPrStrategy === 'apology') {
+            if (prOutput && store) {
+                if (selectedPainIndex === 0 && currentPrStrategy === 'apology' && store.geminiAnalysis?.prReply) {
                     prOutput.value = store.geminiAnalysis.prReply;
-                } else if (store.aiPrReply && currentPrStrategy === 'apology') {
+                } else if (selectedPainIndex === 0 && currentPrStrategy === 'apology' && store.aiPrReply) {
                     prOutput.value = store.aiPrReply;
                 } else {
                     prOutput.value = generatePrReply(store, currentPrStrategy, selectedPainIndex);
@@ -5185,14 +5691,22 @@
         // 13. Phase 3：商圈同業 PK 對決與 ROI 成長驗證核心引擎
         // ==========================================
 
-        // 渲染同業對手下拉選單
-        function renderCompetitorSelector(store) {
+        // 渲染同業對手下拉選單 (即時補齊同行政區與分類競品資料，絕不留空)
+        function renderCompetitorSelector(rawStore) {
+            const store = ensureStoreCompleteData(rawStore);
             const selectEl = document.getElementById('competitor-select');
-            if (!selectEl || !store.competitors) return;
+            if (!selectEl || !store) return;
 
-            selectEl.innerHTML = store.competitors.map((comp, idx) => `
+            const competitors = Array.isArray(store.competitors) && store.competitors.length > 0
+                ? store.competitors
+                : buildDynamicCompetitors(store);
+            if (currentCompetitorIndex >= competitors.length || currentCompetitorIndex < 0) {
+                currentCompetitorIndex = 0;
+            }
+
+            selectEl.innerHTML = competitors.map((comp, idx) => `
                 <option value="${idx}" ${idx === currentCompetitorIndex ? 'selected' : ''}>
-                    ${comp.name.split(' (')[0]} (★ ${comp.stars})
+                    ${String(comp.name || '商圈競品').split(' (')[0]} (★ ${comp.stars || '4.3'})
                 </option>
             `).join('');
         }
@@ -5200,14 +5714,20 @@
         // 切換同業對手
         function onCompetitorSelectChange(val) {
             currentCompetitorIndex = parseInt(val, 10) || 0;
-            const store = storesData.find(s => s.id === activeStoreId) || storesData[0];
-            if (store) renderCompetitorPk(store, currentCompetitorIndex);
+            const rawStore = storesData.find(s => s.id === activeStoreId) || storesData[0];
+            if (rawStore) renderCompetitorPk(ensureStoreCompleteData(rawStore), currentCompetitorIndex);
         }
 
         // 渲染商圈同業 PK 對比擂台 (Google 評分差值、評論總聲量、優勢、痛點)
-        function renderCompetitorPk(store, compIndex = currentCompetitorIndex) {
-            const competitors = store.competitors || [];
-            const competitor = competitors[compIndex] || competitors[0];
+        function renderCompetitorPk(rawStore, compIndex = currentCompetitorIndex) {
+            const store = ensureStoreCompleteData(rawStore);
+            if (!store) return;
+
+            const competitors = Array.isArray(store.competitors) && store.competitors.length > 0
+                ? store.competitors
+                : buildDynamicCompetitors(store);
+            const safeIdx = (compIndex >= 0 && compIndex < competitors.length) ? compIndex : 0;
+            const competitor = competitors[safeIdx] || competitors[0];
             if (!competitor) return;
 
             // 本店資料填入
@@ -5220,8 +5740,8 @@
             if (curName) curName.innerText = store.name.split(' (')[0];
             if (curStars) curStars.innerHTML = `<i class="fa-solid fa-star mr-1 text-[11px]"></i>${store.stars}`;
             if (curReviews) curReviews.innerText = `${store.reviewCount} 則評論`;
-            if (curAdv) curAdv.innerText = (store.pkStrengths || []).slice(0, 2).join('、');
-            if (curDisadv) curDisadv.innerText = (store.pkWeaknesses || []).join('、');
+            if (curAdv) curAdv.innerText = (store.pkStrengths || []).slice(0, 2).join('、') || `主打「${store.signatureDish}」口碑佳`;
+            if (curDisadv) curDisadv.innerText = (store.pkWeaknesses || []).join('、') || '尖峰候位時間較長';
 
             // 競品資料填入
             const compName = document.getElementById('pk-competitor-name');
@@ -5230,42 +5750,45 @@
             const compAdv = document.getElementById('pk-competitor-adv');
             const compDisadv = document.getElementById('pk-competitor-disadv');
 
-            if (compName) compName.innerText = competitor.name.split(' (')[0];
-            if (compStars) compStars.innerHTML = `<i class="fa-solid fa-star mr-1 text-[11px]"></i>${competitor.stars}`;
-            if (compReviews) compReviews.innerText = `${competitor.reviews} 則評論`;
-            if (compAdv) compAdv.innerText = competitor.adv;
-            if (compDisadv) compDisadv.innerText = competitor.disadv;
+            if (compName) compName.innerText = String(competitor.name || '商圈競品').split(' (')[0];
+            if (compStars) compStars.innerHTML = `<i class="fa-solid fa-star mr-1 text-[11px]"></i>${competitor.stars || '4.3'}`;
+            if (compReviews) compReviews.innerText = `${competitor.reviews || '950'} 則評論`;
+            if (compAdv) compAdv.innerText = competitor.adv || '在地客群基礎穩固';
+            if (compDisadv) compDisadv.innerText = competitor.disadv || '社群新客視覺引流較弱';
 
             // 差值徽章更新
             const scoreBadge = document.getElementById('pk-score-diff-badge');
             const reviewBadge = document.getElementById('pk-review-diff-badge');
+            const scoreDiffStr = String(competitor.scoreDiff ?? '+0.2');
+            const reviewDiffStr = String(competitor.reviewDiff ?? '+150');
 
             if (scoreBadge) {
-                const diffVal = parseFloat(competitor.scoreDiff);
-                if (diffVal >= 0) {
+                const diffVal = parseFloat(scoreDiffStr);
+                if (!isNaN(diffVal) && diffVal >= 0) {
                     scoreBadge.className = "px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200";
-                    scoreBadge.innerText = `評分領先 ${competitor.scoreDiff} ★`;
+                    scoreBadge.innerText = `評分領先 ${scoreDiffStr} ★`;
                 } else {
                     scoreBadge.className = "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200";
-                    scoreBadge.innerText = `評分對標 ${competitor.scoreDiff} ★`;
+                    scoreBadge.innerText = `評分對標 ${scoreDiffStr} ★`;
                 }
             }
 
             if (reviewBadge) {
-                const isPositive = !competitor.reviewDiff.startsWith('-');
+                const isPositive = !reviewDiffStr.startsWith('-');
                 reviewBadge.className = isPositive
                     ? "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-50 text-slate-700 border border-slate-200"
                     : "px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200";
                 reviewBadge.innerText = isPositive
-                    ? `聲量高出 ${competitor.reviewDiff} 則`
-                    : `聲量差距 ${competitor.reviewDiff} 則`;
+                    ? `聲量高出 ${reviewDiffStr} 則`
+                    : `聲量差距 ${reviewDiffStr} 則`;
             }
         }
 
         // 渲染營運成長 ROI 驗證儀表板指標與圖表
-        function renderRoiSection(store) {
-            const roi = store.roiGrowth;
-            if (!roi) return;
+        function renderRoiSection(rawStore) {
+            const store = ensureStoreCompleteData(rawStore);
+            if (!store) return;
+            const roi = store.roiGrowth || buildDynamicRoi(store);
 
             const growthRateEl = document.getElementById('roi-growth-rate');
             const weeklyLiftEl = document.getElementById('roi-weekly-lift');
@@ -5276,7 +5799,7 @@
             if (weeklyLiftEl) weeklyLiftEl.innerText = roi.weeklyLift;
             if (revenueLiftEl) revenueLiftEl.innerText = roi.estMonthlyRevenue;
             if (insightTextEl) {
-                insightTextEl.innerHTML = `<i class="fa-solid fa-lightbulb text-amber-400 mr-1.5 shrink-0"></i><span>${roi.insights}</span>`;
+                insightTextEl.innerHTML = `<i class="fa-solid fa-lightbulb text-amber-400 mr-1.5 mt-0.5 shrink-0"></i><span>${roi.insights}</span>`;
             }
 
             updateRoiChart(roi);
@@ -5388,7 +5911,17 @@
             }
         }
 
-        function updateDashboard(store) {
+        function renderDashboardHeader(store) {
+            if (!store) return;
+
+            const thumbEl = document.getElementById('report-store-thumb');
+            if (thumbEl) {
+                thumbEl.dataset.fallbackApplied = '';
+                thumbEl.src = getUniqueStoreImage(store);
+                thumbEl.alt = store.name || '店家縮圖';
+                thumbEl.onerror = () => handleStoreThumbError(thumbEl, store.id);
+            }
+
             const titleEl = document.getElementById('report-title');
             if (titleEl) titleEl.innerText = store.name;
 
@@ -5396,18 +5929,43 @@
             if (catEl) catEl.innerText = store.category;
 
             const addrEl = document.getElementById('report-address');
-            if (addrEl) addrEl.innerHTML = `<i class="fa-solid fa-location-dot text-rose-500 mr-1.5"></i> ${store.address}`;
+            if (addrEl) addrEl.innerHTML = `<i class="fa-solid fa-location-dot text-rose-500 mr-1.5 mt-0.5 sm:mt-0 shrink-0"></i><span class="break-words">${store.address}</span>`;
 
             const starEl = document.getElementById('report-stars');
             if (starEl) starEl.innerHTML = `<i class="fa-solid fa-star mr-1 text-sm"></i>${store.stars}`;
 
             const revEl = document.getElementById('report-reviews');
             if (revEl) revEl.innerText = `(${store.reviewCount} 則 Google 評價)`;
+        }
+
+        function renderThemeTable(store) {
+            const themeBody = document.getElementById('theme-table-body');
+            if (!themeBody || !store?.themes) return;
+            themeBody.innerHTML = store.themes.map(t => `
+                <tr class="hover:bg-slate-50/80 transition-colors">
+                    <td class="py-2.5 pl-3 font-semibold text-slate-800">${t.name}</td>
+                    <td class="py-2.5 font-mono text-slate-500">${t.count}</td>
+                    <td class="py-2.5 text-emerald-600 font-semibold">${t.pos}</td>
+                    <td class="py-2.5 text-slate-400">${t.neu}</td>
+                    <td class="py-2.5 text-rose-500 font-semibold">${t.neg}</td>
+                    <td class="py-2.5 pr-3 text-right font-bold ${parseFloat(t.score) >= 4.5 ? 'text-emerald-600' : 'text-blue-600'}">
+                        ${t.score}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateDashboard(rawStore) {
+            const store = ensureStoreCompleteData(rawStore);
+            if (!store) return;
+
+            renderDashboardHeader(store);
 
             // 渲染 Phase 1 行銷文案卡片
             renderMarketingCard(store);
 
             // 渲染 Phase 2 顧客負評痛點與智慧公關回覆模組
+            renderThemeTable(store);
             renderPainPointsUi(store);
             updatePrReplyText(store);
 
@@ -5435,23 +5993,6 @@
                             <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style="width: ${Math.min(k.count, 100)}%"></div>
                         </div>
                     </div>
-                `).join('');
-            }
-
-            // 主題維度表格更新
-            const themeBody = document.getElementById('theme-table-body');
-            if (themeBody && store.themes) {
-                themeBody.innerHTML = store.themes.map(t => `
-                    <tr class="hover:bg-slate-50/80 transition-colors">
-                        <td class="py-2.5 pl-3 font-semibold text-slate-800">${t.name}</td>
-                        <td class="py-2.5 font-mono text-slate-500">${t.count}</td>
-                        <td class="py-2.5 text-emerald-600 font-semibold">${t.pos}</td>
-                        <td class="py-2.5 text-slate-400">${t.neu}</td>
-                        <td class="py-2.5 text-rose-500 font-semibold">${t.neg}</td>
-                        <td class="py-2.5 pr-3 text-right font-bold ${parseFloat(t.score) >= 4.5 ? 'text-emerald-600' : 'text-blue-600'}">
-                            ${t.score}
-                        </td>
-                    </tr>
                 `).join('');
             }
 
